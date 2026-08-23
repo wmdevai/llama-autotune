@@ -26,6 +26,8 @@ dependencies = [
     "optuna>=4.0",
     "psutil>=6.0",
     "structlog>=24.0",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
 ]
 
 [project.urls]

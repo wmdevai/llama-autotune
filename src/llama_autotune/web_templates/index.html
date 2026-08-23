@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>llama-autotune</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css"
+    >
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <h1>llama-autotune</h1>
+            <span>Benchmark & Optimization</span>
+        </div>
+
+        <nav>
+            <button
+                class="nav-item active"
+                data-tab="dashboard"
+            >
+                Dashboard
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="inspector"
+            >
+                Model Inspector
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="benchmark"
+            >
+                Benchmark
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            llama.cpp autotuning
+        </div>
+
+    </aside>
+
+
+    <main class="content">
+
+        <!-- DASHBOARD -->
+
+        <section
+            id="dashboard"
+            class="tab active"
+        >
+
+            <div class="page-header">
+                <div>
+                    <h2>Dashboard</h2>
+
+                    <p>
+                        Current system and llama.cpp environment.
+                    </p>
+                </div>
+
+                <button
+                    id="refresh-dashboard"
+                    class="secondary-button"
+                >
+                    Refresh
+                </button>
+            </div>
+
+
+            <div
+                id="dashboard-loading"
+                class="status-message"
+            >
+                Detecting hardware...
+            </div>
+
+
+            <div
+                id="dashboard-content"
+                class="dashboard-grid hidden"
+            >
+
+                <div class="card">
+                    <h3>CPU</h3>
+
+                    <div id="cpu-name">-</div>
+
+                    <div class="muted">
+                        <span id="physical-cores">-</span>
+                        physical /
+                        <span id="logical-cores">-</span>
+                        logical cores
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>Memory</h3>
+
+                    <div
+                        id="ram"
+                        class="metric"
+                    >
+                        -
+                    </div>
+
+                    <div class="muted">
+                        System RAM
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>GPU</h3>
+
+                    <div id="gpu-name">
+                        -
+                    </div>
+
+                    <div
+                        id="gpu-details"
+                        class="muted"
+                    >
+                        -
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>Backend</h3>
+
+                    <div
+                        id="backend"
+                        class="metric"
+                    >
+                        -
+                    </div>
+
+                    <div class="muted">
+                        llama.cpp compute backend
+                    </div>
+                </div>
+
+
+                <div class="card wide">
+
+                    <h3>llama.cpp</h3>
+
+                    <div class="info-grid">
+
+                        <div>
+                            <span class="label">
+                                Version
+                            </span>
+
+                            <code id="llama-version">-</code>
+                        </div>
+
+                        <div>
+                            <span class="label">
+                                llama-server
+                            </span>
+
+                            <code id="llama-server">-</code>
+                        </div>
+
+                        <div>
+                            <span class="label">
+                                llama-bench
+                            </span>
+
+                            <code id="llama-bench">-</code>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- MODEL INSPECTOR -->
+
+        <section
+            id="inspector"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Model Inspector</h2>
+
+                    <p>
+                        Read metadata directly from a GGUF file.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <label for="inspect-model-path">
+                    GGUF model path
+                </label>
+
+                <div class="input-row">
+
+                    <input
+                        id="inspect-model-path"
+                        type="text"
+                        placeholder="/path/to/model.gguf"
+                    >
+
+                    <button
+                        id="inspect-button"
+                        class="primary-button"
+                    >
+                        Inspect Model
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="inspect-error"
+                class="error hidden"
+            ></div>
+
+
+            <div
+                id="model-result"
+                class="hidden"
+            >
+
+                <div class="card wide">
+
+                    <h3>Model Information</h3>
+
+                    <div class="info-grid">
+
+                        <div>
+                            <span class="label">Path</span>
+                            <code id="model-path">-</code>
+                        </div>
+
+                        <div>
+                            <span class="label">Architecture</span>
+                            <span id="architecture">-</span>
+                        </div>
+
+                        <div>
+                            <span class="label">Parameters</span>
+                            <span id="parameters">-</span>
+                        </div>
+
+                        <div>
+                            <span class="label">Quantization</span>
+                            <span id="quantization">-</span>
+                        </div>
+
+                        <div>
+                            <span class="label">Layers</span>
+                            <span id="layers">-</span>
+                        </div>
+
+                        <div>
+                            <span class="label">Context Length</span>
+                            <span id="context-length">-</span>
+                        </div>
+
+                        <div>
+                            <span class="label">File Size</span>
+                            <span id="file-size">-</span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- BENCHMARK -->
+
+        <section
+            id="benchmark"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Benchmark</h2>
+
+                    <p>
+                        Run llama-bench using the existing llama-autotune backend.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <div class="form-grid">
+
+                    <div class="form-wide">
+
+                        <label for="benchmark-model-path">
+                            GGUF model path
+                        </label>
+
+                        <input
+                            id="benchmark-model-path"
+                            type="text"
+                            placeholder="/path/to/model.gguf"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="threads">
+                            Threads
+                        </label>
+
+                        <input
+                            id="threads"
+                            type="number"
+                            placeholder="Default"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="gpu-layers">
+                            GPU Layers
+                        </label>
+
+                        <input
+                            id="gpu-layers"
+                            type="number"
+                            value="99"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="batch-size">
+                            Batch Size
+                        </label>
+
+                        <input
+                            id="batch-size"
+                            type="number"
+                            value="2048"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="ubatch-size">
+                            Ubatch Size
+                        </label>
+
+                        <input
+                            id="ubatch-size"
+                            type="number"
+                            value="512"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="cache-type-k">
+                            Cache Type K
+                        </label>
+
+                        <input
+                            id="cache-type-k"
+                            type="text"
+                            placeholder="Default"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="cache-type-v">
+                            Cache Type V
+                        </label>
+
+                        <input
+                            id="cache-type-v"
+                            type="text"
+                            placeholder="Default"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="repetitions">
+                            Repetitions
+                        </label>
+
+                        <input
+                            id="repetitions"
+                            type="number"
+                            value="1"
+                            min="1"
+                        >
+
+                    </div>
+
+
+                    <div class="checkbox-row">
+
+                        <label>
+
+                            <input
+                                id="flash-attn"
+                                type="checkbox"
+                                checked
+                            >
+
+                            Flash Attention
+
+                        </label>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    id="run-benchmark"
+                    class="primary-button large-button"
+                >
+                    Run Benchmark
+                </button>
+
+            </div>
+
+
+            <div
+                id="benchmark-status"
+                class="status-message hidden"
+            ></div>
+
+
+            <div
+                id="benchmark-error"
+                class="error hidden"
+            ></div>
+
+
+            <div
+                id="benchmark-result"
+                class="hidden"
+            >
+
+                <div class="results-grid">
+
+                    <div class="result-card">
+                        <span>Prompt TPS</span>
+                        <strong id="prompt-tps">-</strong>
+                    </div>
+
+                    <div class="result-card">
+                        <span>Generation TPS</span>
+                        <strong id="generation-tps">-</strong>
+                    </div>
+
+                    <div class="result-card">
+                        <span>Startup Time</span>
+                        <strong id="startup-time">-</strong>
+                    </div>
+
+                    <div class="result-card">
+                        <span>Memory Usage</span>
+                        <strong id="memory-usage">-</strong>
+                    </div>
+
+                    <div class="result-card">
+                        <span>Success</span>
+                        <strong id="benchmark-success">-</strong>
+                    </div>
+
+                </div>
+
+
+                <details>
+
+                    <summary>
+                        Raw Benchmark Output
+                    </summary>
+
+                    <pre id="raw-output"></pre>
+
+                </details>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="/static/app.js"></script>
+
+</body>
+</html>
