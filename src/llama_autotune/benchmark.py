@@ -147,7 +147,11 @@ def run_benchmark(
         result.raw_output = "[TIMEOUT]"
     except FileNotFoundError:
         result.success = False
-        result.raw_output = f"[ERROR] llama-bench not found at: {bench_path}"
+        result.raw_output = (
+            f"[ERROR] llama-bench not found at: {bench_path}. "
+            "Install llama.cpp and set the LLAMA_CPP_DIR environment "
+            "variable to the directory containing llama-bench."
+        )
     except Exception as e:
         result.success = False
         result.raw_output = f"[ERROR] {e}"

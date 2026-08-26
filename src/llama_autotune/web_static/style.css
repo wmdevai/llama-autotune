@@ -574,6 +574,37 @@ code {
 }
 
 
+.log-output {
+    margin-top: 20px;
+
+    border-radius: 8px;
+
+    padding: 14px 16px;
+
+    background: #141824;
+
+    border:
+        1px solid #2a3245;
+
+    color: #9fb2d8;
+
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Consolas,
+        monospace;
+
+    max-height: 320px;
+
+    overflow-y: auto;
+
+    white-space: pre-wrap;
+
+    font-size: 0.85rem;
+}
+
+
 /* RAW OUTPUT */
 
 details {

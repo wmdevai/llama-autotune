@@ -1,531 +1,790 @@
 document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupDashboard();
+    setupModels();
     setupInspector();
     setupBenchmark();
-
-    loadDashboard();
+    setupOptimize();
 });
 
+
+function $(id) {
+    return document.getElementById(id);
+}
+
+
+function setHidden(element, hidden) {
+    if (!element) {
+        return;
+    }
+
+    element.classList.toggle("hidden", hidden);
+}
+
+
+function getErrorMessage(error) {
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    return String(error);
+}
+
+
+async function apiFetch(url, options = {}) {
+    const response = await fetch(url, options);
+
+    let data = null;
+
+    try {
+        data = await response.json();
+    } catch {
+        // The caller will receive a useful error below.
+    }
+
+    if (!response.ok) {
+        const message =
+            data?.detail ||
+            `Request failed with HTTP ${response.status}`;
+
+        throw new Error(message);
+    }
+
+    return data;
+}
+
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
 
 function setupNavigation() {
     const navItems = document.querySelectorAll(".nav-item");
     const tabs = document.querySelectorAll(".tab");
 
-    navItems.forEach((item) => {
-        item.addEventListener("click", () => {
-            const tabName = item.dataset.tab;
+    navItems.forEach((button) => {
+        button.addEventListener("click", () => {
+            const target = button.dataset.tab;
 
-            navItems.forEach((nav) => {
-                nav.classList.remove("active");
+            navItems.forEach((item) => {
+                item.classList.remove("active");
             });
 
             tabs.forEach((tab) => {
                 tab.classList.remove("active");
             });
 
-            item.classList.add("active");
+            button.classList.add("active");
 
-            const target = document.getElementById(tabName);
+            const targetTab = $(target);
 
-            if (target) {
-                target.classList.add("active");
+            if (targetTab) {
+                targetTab.classList.add("active");
             }
         });
     });
 }
 
 
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+
 function setupDashboard() {
-    const refreshButton = document.getElementById(
-        "refresh-dashboard"
+    $("refresh-dashboard").addEventListener(
+        "click",
+        loadDashboard
     );
 
-    if (refreshButton) {
-        refreshButton.addEventListener(
-            "click",
-            loadDashboard
-        );
-    }
+    loadDashboard();
 }
 
 
 async function loadDashboard() {
-    const loading = document.getElementById(
-        "dashboard-loading"
-    );
-
-    const content = document.getElementById(
-        "dashboard-content"
-    );
-
-    loading.textContent = "Detecting hardware...";
-    loading.classList.remove("hidden");
-    content.classList.add("hidden");
-
     try {
-        const response = await fetch(
-            "/api/dashboard"
-        );
+        const data = await apiFetch("/api/dashboard");
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                data.detail || "Unable to load dashboard."
-            );
-        }
-
-        const hardware = data.hardware;
+        const hw = data.hardware;
         const llama = data.llama_cpp;
 
-        setText(
-            "cpu-name",
-            hardware.cpu_name || "-"
-        );
+        $("cpu-name").textContent =
+            hw.cpu_name || "-";
 
-        setText(
-            "physical-cores",
-            hardware.physical_cores ?? "-"
-        );
+        $("cpu-cores").textContent =
+            `${hw.physical_cores ?? "-"} physical / ` +
+            `${hw.logical_cores ?? "-"} logical cores`;
 
-        setText(
-            "logical-cores",
-            hardware.logical_cores ?? "-"
-        );
+        $("ram-gb").textContent =
+            hw.ram_gb != null
+                ? `${hw.ram_gb} GB`
+                : "-";
 
-        setText(
-            "ram",
-            hardware.ram_gb
-                ? `${hardware.ram_gb} GB`
-                : "-"
-        );
+        $("gpu-name").textContent =
+            hw.gpu_models?.length
+                ? hw.gpu_models.join(", ")
+                : "No GPU detected";
 
-        setText(
-            "gpu-name",
-            hardware.gpu_models &&
-            hardware.gpu_models.length
-                ? hardware.gpu_models.join(", ")
-                : "No GPU detected"
-        );
+        $("gpu-vram").textContent =
+            hw.vram_per_gpu?.length
+                ? `${hw.vram_per_gpu.join(" / ")} GB VRAM`
+                : "";
 
-        const vram = hardware.vram_per_gpu &&
-            hardware.vram_per_gpu.length
-            ? hardware.vram_per_gpu
-                .map((value) => `${value} GB`)
-                .join(", ")
-            : "VRAM unavailable";
+        $("backend").textContent =
+            hw.backend || "-";
 
-        setText(
-            "gpu-details",
-            `${hardware.gpu_count || 0} GPU(s) • ${vram}`
-        );
+        $("llama-server").textContent =
+            llama.llama_server || "-";
 
-        setText(
-            "backend",
-            hardware.backend || "-"
-        );
+        $("llama-bench").textContent =
+            llama.llama_bench || "-";
 
-        setText(
-            "llama-version",
-            llama.version || "Unknown"
-        );
-
-        setText(
-            "llama-server",
-            llama.llama_server || "Not found"
-        );
-
-        setText(
-            "llama-bench",
-            llama.llama_bench || "Not found"
-        );
-
-        loading.classList.add("hidden");
-        content.classList.remove("hidden");
+        $("llama-version").textContent =
+            llama.version || "-";
 
     } catch (error) {
-        loading.textContent =
-            `Dashboard error: ${error.message}`;
+        console.error("Unable to load dashboard:", error);
+
+        $("cpu-name").textContent =
+            "Unable to load dashboard";
     }
 }
 
 
-function setupInspector() {
-    const button = document.getElementById(
-        "inspect-button"
+/* =========================================================
+   MODEL SELECTOR
+   ========================================================= */
+
+function setupModels() {
+    $("model-select").addEventListener(
+        "change",
+        handleModelSelection
     );
 
-    if (!button) {
+    $("refresh-models").addEventListener(
+        "click",
+        () => loadModels(true)
+    );
+
+    loadModels();
+}
+
+
+async function loadModels(showStatus = false) {
+    const select = $("model-select");
+    const refreshButton = $("refresh-models");
+
+    const previousValue = select.value;
+
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Refreshing...";
+
+    select.innerHTML = "";
+
+    const loadingOption = document.createElement("option");
+
+    loadingOption.value = "";
+    loadingOption.textContent = "Loading models...";
+
+    select.appendChild(loadingOption);
+
+    try {
+        const data = await apiFetch("/api/models");
+
+        select.innerHTML = "";
+
+        const placeholder = document.createElement("option");
+
+        placeholder.value = "";
+        placeholder.textContent =
+            data.models.length
+                ? "Select a model..."
+                : "No GGUF models found";
+
+        select.appendChild(placeholder);
+
+        for (const model of data.models) {
+            const option = document.createElement("option");
+
+            option.value = model.path;
+            option.textContent = model.relative_path;
+
+            select.appendChild(option);
+        }
+
+        const currentPaths = [
+            previousValue,
+            $("inspect-model-path").value.trim(),
+            $("benchmark-model-path").value.trim(),
+            $("optimize-model-path").value.trim(),
+        ].filter(Boolean);
+
+        for (const path of currentPaths) {
+            const exists = Array.from(select.options).some(
+                (option) => option.value === path
+            );
+
+            if (exists) {
+                select.value = path;
+                syncModelPath(path);
+                break;
+            }
+        }
+
+        if (showStatus) {
+            console.info(
+                `Loaded ${data.models.length} GGUF model(s) from ${data.directory}`
+            );
+        }
+
+    } catch (error) {
+        console.error("Unable to load models:", error);
+
+        select.innerHTML = "";
+
+        const option = document.createElement("option");
+
+        option.value = "";
+        option.textContent = "Unable to load models";
+
+        select.appendChild(option);
+
+    } finally {
+        refreshButton.disabled = false;
+        refreshButton.textContent = "Refresh Models";
+    }
+}
+
+
+function handleModelSelection(event) {
+    const modelPath = event.target.value;
+
+    if (!modelPath) {
         return;
     }
 
-    button.addEventListener(
+    syncModelPath(modelPath);
+}
+
+
+function syncModelPath(modelPath) {
+    if (!modelPath) {
+        return;
+    }
+
+    $("inspect-model-path").value = modelPath;
+    $("benchmark-model-path").value = modelPath;
+    $("optimize-model-path").value = modelPath;
+}
+
+
+function getSelectedModelPath() {
+    const selectValue = $("model-select").value.trim();
+
+    if (selectValue) {
+        return selectValue;
+    }
+
+    const inspectorValue =
+        $("inspect-model-path").value.trim();
+
+    if (inspectorValue) {
+        return inspectorValue;
+    }
+
+    const benchmarkValue =
+        $("benchmark-model-path").value.trim();
+
+    if (benchmarkValue) {
+        return benchmarkValue;
+    }
+
+    return $("optimize-model-path").value.trim();
+}
+
+
+/* =========================================================
+   MODEL INSPECTOR
+   ========================================================= */
+
+function setupInspector() {
+    $("inspect-button").addEventListener(
         "click",
         inspectModel
     );
-
-    const input = document.getElementById(
-        "inspect-model-path"
-    );
-
-    input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-            inspectModel();
-        }
-    });
 }
 
 
 async function inspectModel() {
-    const input = document.getElementById(
-        "inspect-model-path"
-    );
+    const modelPath =
+        $("inspect-model-path").value.trim() ||
+        getSelectedModelPath();
 
-    const button = document.getElementById(
-        "inspect-button"
-    );
+    const button = $("inspect-button");
+    const errorBox = $("inspect-error");
+    const results = $("inspect-results");
 
-    const errorBox = document.getElementById(
-        "inspect-error"
-    );
-
-    const resultBox = document.getElementById(
-        "model-result"
-    );
-
-    const modelPath = input.value.trim();
-
-    errorBox.classList.add("hidden");
-    resultBox.classList.add("hidden");
+    setHidden(errorBox, true);
+    setHidden(results, true);
 
     if (!modelPath) {
         errorBox.textContent =
-            "Please enter a GGUF model path.";
+            "Select a model or enter a model path.";
 
-        errorBox.classList.remove("hidden");
+        setHidden(errorBox, false);
+
         return;
     }
 
-    const originalText = button.textContent;
+    syncModelPath(modelPath);
 
     button.disabled = true;
     button.textContent = "Inspecting...";
 
     try {
-        const response = await fetch(
+        const data = await apiFetch(
             "/api/inspect",
             {
                 method: "POST",
+
                 headers: {
                     "Content-Type": "application/json",
                 },
+
                 body: JSON.stringify({
                     model_path: modelPath,
                 }),
             }
         );
 
-        const data = await response.json();
+        $("inspect-path").textContent =
+            data.path ?? "-";
 
-        if (!response.ok) {
-            throw new Error(
-                data.detail || "Unable to inspect model."
-            );
-        }
+        $("inspect-architecture").textContent =
+            data.architecture ?? "-";
 
-        setText(
-            "model-path",
-            data.path || modelPath
-        );
+        $("inspect-parameters").textContent =
+            formatParameters(data.parameters);
 
-        setText(
-            "architecture",
-            data.architecture || "-"
-        );
+        $("inspect-quantization").textContent =
+            data.quantization ?? "-";
 
-        setText(
-            "parameters",
-            formatNumber(data.parameters)
-        );
+        $("inspect-layers").textContent =
+            data.n_layers ?? "-";
 
-        setText(
-            "quantization",
-            data.quantization || "-"
-        );
+        $("inspect-context").textContent =
+            formatNumber(data.training_context);
 
-        setText(
-            "layers",
-            data.n_layers ?? "-"
-        );
+        $("inspect-moe").textContent =
+            data.is_moe ? "Yes" : "No";
 
-        setText(
-            "context-length",
-            data.training_context ?? "-"
-        );
+        $("inspect-size").textContent =
+            data.file_size_gb != null
+                ? `${data.file_size_gb.toFixed(2)} GB`
+                : "-";
 
-        setText(
-            "file-size",
-            data.file_size_gb !== undefined
-                ? `${data.file_size_gb} GB`
-                : "-"
-        );
-
-        resultBox.classList.remove("hidden");
-
-        const benchmarkInput = document.getElementById(
-            "benchmark-model-path"
-        );
-
-        if (benchmarkInput &&
-            !benchmarkInput.value.trim()) {
-            benchmarkInput.value = modelPath;
-        }
+        setHidden(results, false);
 
     } catch (error) {
-        errorBox.textContent = error.message;
-        errorBox.classList.remove("hidden");
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
 
     } finally {
         button.disabled = false;
-        button.textContent = originalText;
+        button.textContent = "Inspect Model";
     }
 }
 
 
-function setupBenchmark() {
-    const button = document.getElementById(
-        "run-benchmark"
-    );
+/* =========================================================
+   BENCHMARK
+   ========================================================= */
 
-    if (button) {
-        button.addEventListener(
-            "click",
-            runBenchmark
-        );
-    }
+function setupBenchmark() {
+    $("benchmark-button").addEventListener(
+        "click",
+        runBenchmark
+    );
 }
 
 
 async function runBenchmark() {
-    const button = document.getElementById(
-        "run-benchmark"
-    );
+    const modelPath =
+        $("benchmark-model-path").value.trim() ||
+        getSelectedModelPath();
 
-    const statusBox = document.getElementById(
-        "benchmark-status"
-    );
+    const button = $("benchmark-button");
 
-    const errorBox = document.getElementById(
-        "benchmark-error"
-    );
+    const statusBox = $("benchmark-status");
+    const errorBox = $("benchmark-error");
+    const resultsBox = $("benchmark-results");
 
-    const resultBox = document.getElementById(
-        "benchmark-result"
-    );
-
-    statusBox.classList.add("hidden");
-    errorBox.classList.add("hidden");
-    resultBox.classList.add("hidden");
-
-    const modelPath = getValue(
-        "benchmark-model-path"
-    );
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+    setHidden(resultsBox, true);
 
     if (!modelPath) {
         errorBox.textContent =
-            "Please enter a GGUF model path.";
+            "Select a model or enter a model path.";
 
-        errorBox.classList.remove("hidden");
+        setHidden(errorBox, false);
+
         return;
     }
 
-    const repetitions = getNumber(
-        "repetitions",
-        1
-    );
-
-    if (repetitions < 1) {
-        errorBox.textContent =
-            "Repetitions must be at least 1.";
-
-        errorBox.classList.remove("hidden");
-        return;
-    }
+    syncModelPath(modelPath);
 
     const payload = {
         model_path: modelPath,
-        threads: getOptionalNumber("threads"),
-        n_gpu_layers: getOptionalNumber("gpu-layers"),
-        batch_size: getOptionalNumber("batch-size"),
-        ubatch_size: getOptionalNumber("ubatch-size"),
-        flash_attn: document.getElementById(
-            "flash-attn"
-        ).checked,
-        cache_type_k: getOptionalValue(
-            "cache-type-k"
+
+        threads: optionalInteger(
+            $("benchmark-threads").value
         ),
-        cache_type_v: getOptionalValue(
-            "cache-type-v"
+
+        n_gpu_layers: optionalInteger(
+            $("benchmark-gpu-layers").value
         ),
-        repetitions: repetitions,
+
+        batch_size: optionalInteger(
+            $("benchmark-batch-size").value
+        ),
+
+        ubatch_size: optionalInteger(
+            $("benchmark-ubatch-size").value
+        ),
+
+        flash_attn:
+            $("benchmark-flash-attn").checked,
+
+        cache_type_k: optionalString(
+            $("benchmark-cache-k").value
+        ),
+
+        cache_type_v: optionalString(
+            $("benchmark-cache-v").value
+        ),
+
+        repetitions:
+            requiredInteger(
+                $("benchmark-repetitions").value,
+                1
+            ),
     };
 
-    const originalText = button.textContent;
-
     button.disabled = true;
-    button.textContent = "Benchmark running...";
+    button.textContent = "Running Benchmark...";
 
     statusBox.textContent =
-        "Running llama-bench. Please wait...";
+        "Benchmark in progress. This may take a moment.";
 
-    statusBox.classList.remove("hidden");
+    setHidden(statusBox, false);
 
     try {
-        const response = await fetch(
+        const data = await apiFetch(
             "/api/benchmark",
             {
                 method: "POST",
+
                 headers: {
                     "Content-Type": "application/json",
                 },
+
                 body: JSON.stringify(payload),
             }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                data.detail || "Benchmark failed."
-            );
-        }
-
         const result = data.result;
 
-        setText(
-            "prompt-tps",
-            formatMetric(result.prompt_tps)
-        );
+        $("result-prompt-tps").textContent =
+            formatTPS(result.prompt_tps);
 
-        setText(
-            "generation-tps",
-            formatMetric(result.generation_tps)
-        );
+        $("result-generation-tps").textContent =
+            formatTPS(result.generation_tps);
 
-        setText(
-            "startup-time",
-            result.startup_time !== undefined
+        $("result-startup-time").textContent =
+            result.startup_time != null
                 ? `${Number(result.startup_time).toFixed(2)} s`
-                : "-"
-        );
+                : "-";
 
-        setText(
-            "memory-usage",
-            result.memory_usage !== undefined
+        $("result-memory").textContent =
+            result.memory_usage != null
                 ? `${Number(result.memory_usage).toFixed(1)} MB`
-                : "-"
-        );
+                : "-";
 
-        setText(
-            "benchmark-success",
-            result.success ? "Yes" : "No"
-        );
+        $("result-success").textContent =
+            result.success ? "Yes" : "No";
 
-        setText(
-            "raw-output",
-            JSON.stringify(
-                {
-                    config: data.config,
-                    result: result,
-                },
-                null,
-                2
-            )
-        );
+        $("benchmark-raw-output").textContent =
+            result.raw_output || "";
 
-        statusBox.classList.add("hidden");
-        resultBox.classList.remove("hidden");
+        statusBox.textContent =
+            result.success
+                ? "Benchmark completed successfully."
+                : "Benchmark completed with an error.";
 
-        if (!result.success) {
-            errorBox.textContent =
-                result.error ||
-                "Benchmark completed unsuccessfully.";
-
-            errorBox.classList.remove("hidden");
-        }
+        setHidden(resultsBox, false);
 
     } catch (error) {
-        statusBox.classList.add("hidden");
+        errorBox.textContent =
+            getErrorMessage(error);
 
-        errorBox.textContent = error.message;
-        errorBox.classList.remove("hidden");
+        setHidden(errorBox, false);
 
     } finally {
         button.disabled = false;
-        button.textContent = originalText;
+        button.textContent = "Run Benchmark";
     }
 }
 
 
-function setText(id, value) {
-    const element = document.getElementById(id);
+/* =========================================================
+   AUTO OPTIMIZE
+   ========================================================= */
 
-    if (element) {
-        element.textContent = value;
+function setupOptimize() {
+    $("optimize-button").addEventListener(
+        "click",
+        runOptimize
+    );
+}
+
+
+async function runOptimize() {
+    const modelPath =
+        $("optimize-model-path").value.trim() ||
+        getSelectedModelPath();
+
+    const button = $("optimize-button");
+
+    const statusBox = $("optimize-status");
+    const errorBox = $("optimize-error");
+    const resultsBox = $("optimize-results");
+    const logBox = $("optimize-log");
+
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+    setHidden(resultsBox, true);
+
+    if (logBox) {
+        logBox.textContent = "";
+        setHidden(logBox, false);
+    }
+
+    if (!modelPath) {
+        errorBox.textContent =
+            "Select a model from Model Inspector or enter a model path.";
+
+        setHidden(errorBox, false);
+
+        return;
+    }
+
+    syncModelPath(modelPath);
+
+    const payload = {
+        model_path: modelPath,
+
+        objective:
+            $("optimize-objective").value,
+
+        trials_b:
+            requiredInteger(
+                $("optimize-trials-b").value,
+                12
+            ),
+
+        trials_c:
+            requiredInteger(
+                $("optimize-trials-c").value,
+                20
+            ),
+    };
+
+    button.disabled = true;
+    button.textContent = "Optimizing...";
+
+    statusBox.textContent =
+        "Optimization in progress. Multiple real benchmarks will be executed.";
+
+    setHidden(statusBox, false);
+
+    try {
+        const job = await apiFetch(
+            "/api/optimize",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify(payload),
+            }
+        );
+
+        await streamOptimizeEvents(
+            job.job_id,
+            statusBox,
+            errorBox,
+            resultsBox,
+            logBox
+        );
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+
+    } finally {
+        button.disabled = false;
+        button.textContent = "Start Optimization";
     }
 }
 
 
-function getValue(id) {
-    const element = document.getElementById(id);
+function streamOptimizeEvents(
+    jobId,
+    statusBox,
+    errorBox,
+    resultsBox,
+    logBox
+) {
+    return new Promise((resolve) => {
+        const source = new EventSource(
+            `/api/optimize/events/${jobId}`
+        );
 
-    return element
-        ? element.value.trim()
-        : "";
+        source.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "log") {
+                if (logBox) {
+                    logBox.textContent += `${data.message}\n`;
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                if (statusBox) {
+                    statusBox.textContent = data.message;
+                }
+
+                return;
+            }
+
+            if (data.type === "done") {
+                source.close();
+
+                if (data.error) {
+                    if (errorBox) {
+                        errorBox.textContent = data.error;
+                        setHidden(errorBox, false);
+                    }
+                } else if (data.result) {
+                    renderOptimizeResult(data.result);
+
+                    if (statusBox) {
+                        statusBox.textContent =
+                            "Optimization completed successfully.";
+                    }
+
+                    setHidden(resultsBox, false);
+                }
+
+                resolve();
+            }
+        };
+
+        source.onerror = () => {
+            source.close();
+            resolve();
+        };
+    });
 }
 
 
-function getOptionalValue(id) {
-    const value = getValue(id);
+function renderOptimizeResult(data) {
+    const baseline = data.baseline_result;
+    const result = data.final_result;
 
-    return value || null;
+    $("optimize-best-score").textContent =
+        data.best_score != null
+            ? Number(data.best_score).toFixed(4)
+            : "-";
+
+    $("optimize-total-evaluations").textContent =
+        data.total_evaluations ?? "-";
+
+    $("optimize-baseline-prompt-tps").textContent =
+        formatTPS(baseline?.prompt_tps);
+
+    $("optimize-baseline-generation-tps").textContent =
+        formatTPS(baseline?.generation_tps);
+
+    $("optimize-prompt-tps").textContent =
+        formatTPS(result?.prompt_tps);
+
+    $("optimize-generation-tps").textContent =
+        formatTPS(result?.generation_tps);
+
+    const improvement =
+        data.best_score != null
+            ? (Number(data.best_score) - 1) * 100
+            : null;
+
+    $("optimize-improvement").textContent =
+        improvement != null
+            ? `${improvement >= 0 ? "+" : ""}${improvement.toFixed(2)}%`
+            : "-";
+
+    $("optimize-best-config").textContent =
+        JSON.stringify(
+            data.best_config,
+            null,
+            2
+        );
 }
 
 
-function getNumber(id, fallback) {
-    const element = document.getElementById(id);
+/* =========================================================
+   HELPERS
+   ========================================================= */
 
-    if (!element || element.value === "") {
-        return fallback;
+function optionalInteger(value) {
+    const trimmed = String(value ?? "").trim();
+
+    if (!trimmed) {
+        return null;
     }
 
-    const value = Number(element.value);
+    const number = Number.parseInt(trimmed, 10);
 
-    return Number.isFinite(value)
-        ? value
+    return Number.isNaN(number)
+        ? null
+        : number;
+}
+
+
+function requiredInteger(value, fallback) {
+    const number =
+        optionalInteger(value);
+
+    return number != null && number >= 1
+        ? number
         : fallback;
 }
 
 
-function getOptionalNumber(id) {
-    const element = document.getElementById(id);
+function optionalString(value) {
+    const trimmed =
+        String(value ?? "").trim();
 
-    if (!element || element.value.trim() === "") {
-        return null;
-    }
-
-    const value = Number(element.value);
-
-    return Number.isFinite(value)
-        ? value
-        : null;
+    return trimmed || null;
 }
 
 
 function formatNumber(value) {
-    if (value === undefined ||
-        value === null) {
+    if (value == null) {
         return "-";
     }
 
@@ -533,11 +792,37 @@ function formatNumber(value) {
 }
 
 
-function formatMetric(value) {
-    if (value === undefined ||
-        value === null) {
+function formatParameters(value) {
+    if (value == null) {
         return "-";
     }
 
-    return Number(value).toFixed(2);
+    const number = Number(value);
+
+    if (Number.isNaN(number)) {
+        return String(value);
+    }
+
+    if (number >= 1_000_000_000) {
+        return `${(number / 1_000_000_000).toFixed(2)}B`;
+    }
+
+    if (number >= 1_000_000) {
+        return `${(number / 1_000_000).toFixed(2)}M`;
+    }
+
+    return formatNumber(number);
+}
+
+
+function formatTPS(value) {
+    if (value == null) {
+        return "-";
+    }
+
+    const number = Number(value);
+
+    return Number.isNaN(number)
+        ? "-"
+        : number.toFixed(2);
 }

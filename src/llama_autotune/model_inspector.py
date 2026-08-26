@@ -89,6 +89,18 @@ def inspect_model(path: str | Path) -> ModelInfo:
     info.parameters = _resolve_param_count(kv)
     info.n_layers = _resolve_block_count(kv, info.architecture)
     info.n_heads = _get_int(kv, f"{info.architecture}.attention.head_count", default=0)
+    info.n_kv_heads = _get_int(
+        kv,
+        f"{info.architecture}.attention.head_count_kv",
+        default=0,
+    )
+    if info.n_kv_heads <= 0:
+        info.n_kv_heads = info.n_heads
+    info.embedding_length = _get_int(
+        kv,
+        f"{info.architecture}.embedding_length",
+        default=0,
+    )
     info.training_context = _get_int(kv, f"{info.architecture}.context_length", default=0)
 
     expert_count = _get_int(kv, f"{info.architecture}.expert_count", default=0)

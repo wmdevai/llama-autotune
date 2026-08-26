@@ -1,277 +1,472 @@
 # llama-autotune
 
-A cross-platform benchmarking and optimization tool for `llama.cpp` that automatically discovers the fastest stable configuration for any combination of:
+`llama-autotune` è uno strumento di benchmark e ottimizzazione per `llama.cpp`.
 
-- CPU-only, NVIDIA (CUDA), AMD (ROCm/Vulkan), Intel, and Apple Silicon systems
-- Single-GPU and multi-GPU setups
-- Dense and Mixture-of-Experts (MoE) models
-- Any GGUF quantization
+Il progetto analizza l'hardware disponibile e le caratteristiche di un modello GGUF, genera configurazioni candidate e le valuta tramite benchmark reali di `llama.cpp` per individuare una configurazione adatta all'obiettivo di ottimizzazione selezionato.
 
-```bash
-llama-autotune search model.gguf --objective max_generation_tps
-```
+L'ottimizzazione è organizzata in tre fasi:
 
-## Features
+- **Stage A**: generazione e valutazione di una configurazione iniziale basata su euristiche;
+- **Stage B**: esplorazione controllata dei parametri principali entro un budget definito di trial;
+- **Stage C**: raffinamento locale delle configurazioni migliori.
 
-- **Hardware Detection** — CPU cores, RAM, GPU vendor/model/VRAM across Windows, Linux, macOS
-- **GGUF Inspection** — reads model architecture, parameter count, quantization, layer count, context length, MoE status (total vs active parameters, expert count) directly from GGUF headers
-- **Auto-Scaling Search** — runs a tiny speed probe first, then scales benchmark size and trial count to match the hardware (works on Raspberry Pi and Threadripper alike)
-- **3-Stage Optimization** — heuristic baseline → local grid search → Bayesian (Optuna) tuning
-- **Constraint Engine** — VRAM estimation, OOM detection, plausibility checks (rejects bad configs before benchmarking)
-- **Multi-GPU Support** — tensor-split ratio search for 2+ GPU systems
-- **SQLite Database** — persistent benchmark history and launch profiles
-- **Launch Profiles** — export/import reusable JSON configurations
-- **Zero Third-Party GPU Libs** — hardware detection uses stdlib + WMI/subprocess
+## Caratteristiche
 
-## Installation
+- **Rilevamento hardware**: CPU, RAM, GPU, backend e VRAM disponibili;
+- **Ispezione GGUF**: lettura di architettura, parametri, quantizzazione, layer, context length e caratteristiche MoE;
+- **Benchmark con llama.cpp**: utilizzo di `llama-bench` per misurare le prestazioni delle configurazioni;
+- **Ottimizzazione in tre fasi**: baseline euristica, Stage B e raffinamento Stage C;
+- **Obiettivi multipli**: velocità di generazione, velocità del prompt, latenza, contesto, efficienza e profilo bilanciato;
+- **Gestione dei vincoli**: stima della VRAM e controlli di plausibilità prima dei benchmark;
+- **Full GPU offload**: valori di `n_gpu_layers` pari o superiori al numero di layer del modello sono trattati come offload completo;
+- **Benchmark adattati al contesto**: il carico del prompt può essere adattato al valore di `ctx_size`;
+- **Database SQLite**: persistenza dei benchmark e dei profili di avvio;
+- **Profili di avvio**: esportazione e importazione di configurazioni JSON;
+- **Web UI integrata**: interfaccia web avviabile dalla CLI.
 
-### Prerequisites
+## Installazione
 
-- Python 3.12+
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) built binaries (`llama-bench.exe`, `llama-server.exe`)
-- `uv` (recommended) or `pip`
+### Prerequisiti
 
-### Option 1: Install from source (recommended)
+Per utilizzare `llama-autotune` sono necessari:
+
+- Python 3.12 o superiore;
+- una build funzionante di `llama.cpp`;
+- il binario `llama-bench` per eseguire i benchmark;
+- il binario `llama-server` per utilizzare il comando `launch`.
+
+### Installazione dal sorgente
+
+Clona il repository:
 
 ```bash
 git clone https://github.com/Najafu/llama-autotune.git
 cd llama-autotune
-uv sync
 ```
 
-### Option 2: Install directly from GitHub
+Il progetto utilizza un ambiente virtuale Python. Una volta disponibile la directory `.venv`, il comando può essere eseguito direttamente da lì:
 
 ```bash
-pip install git+https://github.com/Najafu/llama-autotune.git
+.venv/bin/llama-autotune --version
 ```
 
-### Setting up llama.cpp
-
-The tool needs the `llama-bench` and `llama-server` binaries (`llama-bench.exe` / `llama-server.exe` on Windows). It looks for them in this order:
-
-1. The directory set in the `LLAMA_CPP_DIR` environment variable
-2. Directories next to the installed package
-3. Your system `PATH`
+Nella configurazione locale, se `llama-autotune` non è disponibile globalmente nel `PATH`, utilizzare:
 
 ```bash
-# Linux / macOS
-export LLAMA_CPP_DIR=/path/to/llama.cpp/build/bin
-
-# Windows (PowerShell)
-$env:LLAMA_CPP_DIR = "C:\path\to\llamacpp"
+.venv/bin/llama-autotune
 ```
 
-### Verify installation
+### Configurazione di llama.cpp
+
+`llama-autotune` utilizza i binari di `llama.cpp`:
+
+- `llama-bench` per eseguire i benchmark;
+- `llama-server` per il comando `launch`.
+
+La ricerca dei binari avviene nell'ordine seguente:
+
+1. directory indicata dalla variabile d'ambiente `LLAMA_CPP_DIR`;
+2. directory vicine al pacchetto installato;
+3. `PATH` di sistema.
+
+Su Linux è possibile indicare esplicitamente la directory dei binari:
 
 ```bash
-llama-autotune --version
-llama-autotune inspect path/to/model.gguf
+export LLAMA_CPP_DIR=/percorso/alla/llama.cpp/build/bin
 ```
 
-## Usage
+Ad esempio, se `llama.cpp` si trova in:
+
+```text
+~/.local/src/llama.cpp
+```
+
+la configurazione sarà:
+
+```bash
+export LLAMA_CPP_DIR="$HOME/.local/src/llama.cpp/build/bin"
+```
+
+Per verificare che i binari siano presenti:
+
+```bash
+echo "$LLAMA_CPP_DIR"
+
+ls -l \
+  "$LLAMA_CPP_DIR/llama-bench" \
+  "$LLAMA_CPP_DIR/llama-server"
+```
+
+Se vuoi rendere permanente la variabile per Bash:
+
+```bash
+echo 'export LLAMA_CPP_DIR="$HOME/.local/src/llama.cpp/build/bin"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Verifica dell'installazione
+
+Dalla directory del progetto:
+
+```bash
+cd ~/.local/src/llama-autotune
+```
+
+Verifica la versione:
+
+```bash
+.venv/bin/llama-autotune --version
+```
+
+Visualizza l'aiuto:
+
+```bash
+.venv/bin/llama-autotune --help
+```
+
+Verifica il comando Web UI:
+
+```bash
+.venv/bin/llama-autotune web --help
+```
+
+Esegui l'ispezione di un modello:
+
+```bash
+.venv/bin/llama-autotune inspect /percorso/al/modello.gguf
+```
+
+## Utilizzo
 
 ### inspect
 
-Show hardware and model metadata. MoE models display both total and active parameter counts.
+Mostra le informazioni sull'hardware e i metadati del modello GGUF.
 
 ```bash
-llama-autotune inspect model.gguf
-
-# MoE models show Active Params:
-# Parameters     7,000,000,000
-# MoE            Yes
-# Active Params  1,000,000,000
+.venv/bin/llama-autotune inspect model.gguf
 ```
+
+Per i modelli MoE vengono mostrate anche le informazioni sui parametri attivi.
 
 ### benchmark
 
-Run a benchmark with optional custom parameters.
+Esegue un benchmark utilizzando `llama-bench`.
+
+Esempio:
 
 ```bash
-llama-autotune benchmark model.gguf -r 3 -t 8 -b 2048
+.venv/bin/llama-autotune benchmark model.gguf
 ```
 
-### search
-
-Run the full 3-stage optimizer to find the best configuration. The optimizer
-automatically detects hardware speed with a minimal probe (`-p 64 -n 32 -r 1`)
-and scales all benchmarks accordingly:
-
-| Speed tier | Gen TPS | Trial budget | Benchmark size |
-|---|---|---|---|
-| `very_slow` | < 1 or timeout | Heuristic only | — |
-| `slow` | 1 – 4 | 10 | 64 prompt, 32 gen, 1 rep |
-| `medium` | 4 – 15 | 25 | 256 prompt, 64 gen, 2 reps |
-| `fast` | > 15 | 55 | 512 prompt, 128 gen, 3 reps |
-
-No configuration needed — works on anything from a Raspberry Pi to a Threadripper.
+È possibile specificare parametri personalizzati:
 
 ```bash
-llama-autotune search model.gguf --objective balanced
-llama-autotune search model.gguf --objective max_generation_tps --profile best.json
+.venv/bin/llama-autotune benchmark model.gguf \
+  --batch-size 4096 \
+  --ubatch-size 1024 \
+  --n-gpu-layers 999 \
+  --flash-attn
 ```
 
-| Objective | Optimizes for |
-|---|---|
-| `max_generation_tps` | Fastest token generation |
-| `max_prompt_tps` | Fastest prompt processing |
-| `min_latency` | Shortest startup time |
-| `max_context` | Largest context size that fits in memory (generation speed as tiebreaker) |
-| `max_efficiency` | Generation speed per MB of memory |
-| `balanced` | Generation speed (default) |
-
-MoE models (e.g. OLMoE, Qwen-MoE, DeepSeek, Mixtral) are fully supported — the inspector automatically detects `expert_count` and `expert_used_count` from GGUF headers and reports active vs total parameters.
-
-### launch
-
-Start `llama-server` with the optimal profile.
+Le opzioni disponibili possono essere visualizzate con:
 
 ```bash
-llama-autotune launch model.gguf
-llama-autotune launch model.gguf --profile best.json
+.venv/bin/llama-autotune benchmark --help
 ```
 
-### export / import
+## Ottimizzazione
 
-Save and load launch profiles.
+Il comando `search` esegue la ricerca automatica di una configurazione.
+
+Esempio:
 
 ```bash
-llama-autotune export profile.json --model model.gguf --hardware "RTX 4090" --score 102
-llama-autotune import profile.json
+.venv/bin/llama-autotune search model.gguf
 ```
 
-## Environment
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LLAMA_CPP_DIR` | parent of tool directory | Path to the `llama-bench` / `llama-server` binaries |
-
-## Data Storage
-
-Benchmark history and launch profiles are stored in a SQLite database at:
-
-```
-~/.llama-autotune/benchmarks.db        # Linux / macOS
-C:\Users\<you>\.llama-autotune\benchmarks.db   # Windows
-```
-
-Delete this file at any time to reset the benchmark history — it is recreated automatically.
-
-## Dependencies
-
-| Package | Purpose |
-|---------|---------|
-| typer | CLI framework |
-| pydantic | Data validation |
-| rich | Terminal output |
-| sqlalchemy | Database ORM |
-| optuna | Bayesian optimization |
-| psutil | Hardware detection |
-| structlog | Logging |
-
-> **Note:** GGUF files are parsed with a fast custom header reader (no external library needed).
-
-## Project Structure
-
-```
-src/llama_autotune/
-├── cli.py              # Typer CLI (6 commands)
-├── models.py           # Pydantic data classes
-├── hardware.py         # CPU/RAM/GPU detection
-├── model_inspector.py  # GGUF header parser
-├── benchmark.py        # llama-bench subprocess wrapper
-├── heuristics.py       # Baseline config generator
-├── search_space.py     # Tunable parameter definitions
-├── optimizer.py        # 3-stage search engine
-├── constraints.py      # VRAM estimator + OOM detection
-├── multi_gpu.py        # Multi-GPU tensor-split tuning
-├── profiles.py         # JSON profile export/import
-└── database.py         # SQLite storage
-```
-
-## Architecture
-
-```
-Hardware Probe → GGUF Inspector → Config Generator → Speed Probe → Benchmark Engine → Optimizer → Profile Database → Launcher
-```
-
-## Troubleshooting
-
-### "llama-bench not found"
-
-The most common issue. Set `LLAMA_CPP_DIR` to the directory containing the llama.cpp binaries and verify:
+È possibile specificare un obiettivo:
 
 ```bash
-# Windows (PowerShell)
-$env:LLAMA_CPP_DIR = "C:\path\to\llamacpp"
-
-# Linux / macOS
-export LLAMA_CPP_DIR=/path/to/llama.cpp/build/bin
-
-llama-autotune benchmark model.gguf -r 1
+.venv/bin/llama-autotune search model.gguf \
+  --objective max_generation_tps
 ```
 
-On Linux/macOS make sure the binaries are executable (`chmod +x llama-bench`).
-
-### Search finishes instantly with "using heuristic"
-
-Your machine was classified as `very_slow` (under 1 token/sec on the probe). The tool returns the safe heuristic config instead of spending hours benchmarking. Try a smaller model or a lower quantization (e.g. Q4 instead of Q8).
-
-### Benchmark fails or times out
-
-- Check the model runs at all: `llama-bench -m model.gguf -p 16 -n 8 -r 1`
-- Very large models on low-RAM machines can hit the OOM detector — the constraint engine rejects configs it estimates won't fit, but estimates can be off for unusual architectures.
-- Run with `-v` (`llama-autotune -v search ...`) to see per-trial logs.
-
-### Where did my results go?
-
-Every benchmark is saved to the SQLite database (see [Data Storage](#data-storage)). The best config is also printed at the end of `search`, and `--profile best.json` writes a reusable profile file.
-
-## FAQ
-
-**Does it work without a GPU?**
-Yes — CPU-only systems are fully supported. The search space automatically adjusts (thread count instead of GPU layers).
-
-**How long does a search take?**
-The tool probes your hardware speed first and scales the workload: a few minutes on fast machines, and it degrades gracefully to heuristics-only on very slow ones (target: under 10–20 minutes on any machine).
-
-**Are MoE models supported?**
-Yes. `expert_count` / `expert_used_count` are read from GGUF headers, and both total and active parameters are reported and used in heuristics.
-
-**Can I share profiles between machines?**
-Yes — `export` writes a JSON profile that `import` reads on another machine. Profiles are hardware-specific, so treat an imported profile as a starting point, not a guarantee.
-
-## Testing
+Gli obiettivi disponibili dipendono dalle opzioni definite dal progetto e possono essere visualizzati con:
 
 ```bash
-uv run pytest -v
+.venv/bin/llama-autotune search --help
 ```
 
-The suite (90+ tests) covers the CLI commands, benchmark output parsing, MoE detection, objective scoring, constraint logic, hardware detection, search space, profiles, and database operations. Tests that need a real GGUF model or the llama.cpp binaries skip automatically when those are not present, so the suite runs anywhere. CI runs on Linux, Windows, and macOS.
+Per ripartire da una ricerca precedente senza ripetere i benchmark già
+eseguiti sullo stesso modello, usare `--resume`:
 
-## Changelog
+```bash
+.venv/bin/llama-autotune search model.gguf --resume
+```
 
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+## Le tre fasi dell'ottimizzazione
 
-## License
+### Stage A — Configurazione iniziale
 
-MIT. See [LICENSE](LICENSE).
+Stage A genera una configurazione iniziale utilizzando:
 
-## Contributing
+- caratteristiche del modello;
+- CPU;
+- GPU;
+- VRAM disponibile;
+- RAM disponibile;
+- informazioni sul backend.
 
-PRs welcome. Please run tests (`uv run pytest`) before submitting and match the existing code style (Google-style docstrings, full type annotations).
+Questa configurazione costituisce la baseline iniziale per le fasi successive.
 
-## Project Status
+### Stage B — Esplorazione dei parametri principali
 
-Current version: **0.3.0**. All milestones 1–4 are complete. MoE detection verified with real models (OLMoE-1B-7B). The tool is ready for daily use.
+Stage B esplora in modo controllato i parametri principali della configurazione.
 
-| Milestone | Status |
-|---|---|
-| 1. Hardware Detection + GGUF Inspection + Benchmark | ✓ |
-| 2. Config Generator + SQLite Storage + Result Parsing | ✓ |
-| 3. Optimization Engine + OOM Detection + Auto-Scaling | ✓ |
-| 4. Launch Profiles + Multi-GPU + CLI Commands | ✓ |
+Nella configurazione attuale il budget predefinito è di **12 valutazioni**.
 
-**Future (no timeline):** Community benchmark sharing, cloud database, web dashboard.
+Tra i parametri esplorati rientrano:
 
-> Note: developed and battle-tested on Windows; Linux and macOS support is implemented and covered by CI, but has seen less real-world use. Bug reports welcome.
+- `batch_size`;
+- `ubatch_size`;
+- `n_gpu_layers`;
+- `ctx_size`.
+
+Le configurazioni vengono sottoposte ai controlli di plausibilità e alla stima della VRAM prima dell'esecuzione del benchmark.
+
+### Stage C — Raffinamento locale
+
+Stage C esegue un raffinamento locale delle configurazioni migliori ottenute nelle fasi precedenti.
+
+Nella configurazione attuale il budget predefinito è di **20 valutazioni valide**.
+
+Durante questa fase:
+
+- vengono generate configurazioni candidate nell'area delle configurazioni migliori;
+- le configurazioni duplicate possono essere recuperate dalla cache;
+- i cache hit non vengono considerati nuove valutazioni complete;
+- i trial non validi o duplicati vengono gestiti separatamente dal conteggio delle valutazioni valide.
+
+## Context size
+
+La configurazione iniziale utilizza un valore di `ctx_size` fino a **24576**, compatibilmente con il context length dichiarato dal modello.
+
+Il valore può essere modificato durante la ricerca e viene considerato anche nella stima della memoria necessaria.
+
+## Batch size e ubatch size
+
+Lo spazio di ricerca include:
+
+- `batch_size` fino a **8192**;
+- `ubatch_size` fino a **1024**.
+
+La configurazione migliore dipende dal modello, dalla GPU, dalla VRAM disponibile e dal contesto utilizzato.
+
+Un valore elevato non garantisce automaticamente prestazioni migliori: la configurazione viene verificata tramite benchmark reali.
+
+## GPU offload e VRAM
+
+La stima della VRAM tiene conto della quantità di modello effettivamente trasferita sulla GPU.
+
+Per `n_gpu_layers`:
+
+- `None` o `0` indicano nessun offload GPU;
+- valori inferiori al numero di layer rappresentano un offload parziale;
+- valori pari o superiori al numero di layer del modello vengono trattati come **full GPU offload**.
+
+La stima considera:
+
+- dimensione del modello;
+- overhead del backend;
+- frazione del modello caricata sulla GPU;
+- memoria necessaria per la KV cache.
+
+Le configurazioni che superano i limiti di memoria o risultano non plausibili possono essere escluse prima del benchmark.
+
+## Profili di avvio
+
+È possibile esportare e importare configurazioni.
+
+### Export
+
+```bash
+.venv/bin/llama-autotune export profile.json \
+  --model model.gguf \
+  --hardware "Nome GPU"
+```
+
+### Import
+
+```bash
+.venv/bin/llama-autotune import profile.json
+```
+
+## launch
+
+Il comando `launch` avvia `llama-server` utilizzando la configurazione disponibile.
+
+Esempio:
+
+```bash
+.venv/bin/llama-autotune launch model.gguf
+```
+
+Le opzioni disponibili possono essere visualizzate con:
+
+```bash
+.venv/bin/llama-autotune launch --help
+```
+
+## Web UI
+
+`llama-autotune` include una Web UI integrata.
+
+Per avviarla:
+
+```bash
+cd ~/.local/src/llama-autotune
+
+.venv/bin/llama-autotune web
+```
+
+Per impostazione predefinita l'interfaccia viene avviata su:
+
+```text
+http://127.0.0.1:8766
+```
+
+È possibile modificare host e porta:
+
+```bash
+.venv/bin/llama-autotune web \
+  --host 127.0.0.1 \
+  --port 8766
+```
+
+Per visualizzare tutte le opzioni:
+
+```bash
+.venv/bin/llama-autotune web --help
+```
+
+## Esempio completo
+
+Supponendo che:
+
+- il progetto si trovi in `~/.local/src/llama-autotune`;
+- `llama.cpp` si trovi in `~/.local/src/llama.cpp`;
+- il modello sia disponibile localmente;
+
+è possibile procedere così:
+
+```bash
+cd ~/.local/src/llama-autotune
+
+export LLAMA_CPP_DIR="$HOME/.local/src/llama.cpp/build/bin"
+
+.venv/bin/llama-autotune inspect \
+  "$HOME/Modelli/llama.cpp/model.gguf"
+
+.venv/bin/llama-autotune search \
+  "$HOME/Modelli/llama.cpp/model.gguf"
+```
+
+Al termine della ricerca è possibile avviare il modello:
+
+```bash
+.venv/bin/llama-autotune launch \
+  "$HOME/Modelli/llama.cpp/model.gguf"
+```
+
+Oppure avviare la Web UI:
+
+```bash
+.venv/bin/llama-autotune web
+```
+
+## Sviluppo
+
+Per eseguire i test dal repository:
+
+```bash
+cd ~/.local/src/llama-autotune
+
+.venv/bin/pytest -q
+```
+
+Lo stato verificato più recente del progetto è:
+
+```text
+157 passed, 4 skipped
+```
+
+Per misurare la copertura dei test:
+
+```bash
+.venv/bin/pytest -q --cov=llama_autotune --cov-report=term-missing
+```
+
+## Roadmap
+
+Piano di lavoro in tre fasi: **P0** (igiene del repository), **P1** (correttezza
+della stima VRAM e robustezza della detection hardware) e **P2** (qualità della
+ricerca, UX e testing).
+
+### P0 — Igiene del repository
+
+- [x] Rimuovere i file `.bak` / `.backup.*` dentro `src/llama_autotune/` (e
+      `tests/`), versioni di lavoro di `optimizer.py`, `cli.py` e `web.py`.
+- [x] Eliminare i file accidentali nella root: `ed -n 430,780p \` (redirect
+      errato) e i log vuoti `benchmark*.log`.
+- [x] Rafforzare `.gitignore`: `*.bak`, `*.backup.*`, `*.log`, `logs/`,
+      `results/`.
+
+### P1 — Correttezza della stima VRAM
+
+- [x] GQA/MQA non considerati: leggere `attention.head_count_kv` dal GGUF e
+      usarlo nella stima della KV-cache (oggi si usa `head_count`, che per
+      modelli come Llama 3 70B o Qwen sovrastima la VRAM).
+- [x] Formula KV-cache troppo rozza: `2 * n_layers * n_heads * ctx * 2 * 2`
+      hardcoda 2 byte/elemento e ignora `cache_type_k/v` (q8_0/q4_0/f16);
+      inoltre non considera che la KV-cache può essere offloadata solo sui
+      layer su GPU.
+- [x] Overhead per MoE: la stima moltiplica l'intero file per la frazione di
+      layer; per MoE il peso è concentrato negli expert, stimare per blocchi
+      (attention/shared vs expert).
+
+### P1 — Robustezza della detection hardware
+
+- [x] VRAM AMD su Linux non rilevata: `rocm-smi --showproductinfo` cattura solo
+      il nome; usare `--showmeminfo vram`.
+- [x] VRAM macOS assente e Windows via WMI inaffidabile (AdapterRAM overflowa
+      su GPU > 4 GB); usare `system_profiler`/`ioreg` e `dxdiag`/nvapi.
+- [x] `_verify_gpu_backend` fragile: l'euristica `"none" in stdout` può dare
+      falsi positivi; parsare l'output JSON di `--list-devices` se disponibile.
+- [x] Fallback se `llama-bench` manca: errore esplicito che suggerisca di
+      impostare `LLAMA_CPP_DIR`.
+
+### P2 — Qualità della ricerca
+
+- [x] Hardcode discutibili: `max_layers = min(n_layers, 200)` e step
+      `max_layers // 4`; range di `n_gpu_layers` dipendente dalla VRAM. Step
+      batch/ubatch fissi (128/64) → usare step logaritmici o categoriali.
+- [x] `config_from_params` inefficiente: `model_validate` per ogni chiave in un
+      loop; costruire il dict una volta o usare `setattr` dopo una singola
+      validazione.
+- [x] `optimizer.py` da 1392 righe: separare gli stadi in moduli o classi per
+      testabilità.
+- [x] Ripresa dei run (`--resume`): ripartire da un run interrotto sfruttando la
+      cache SQLite senza ri-benchmarkare.
+
+### P2 — UX e testing
+
+- [x] Web UI: progresso live (SSE/WebSocket) invece del solo polling, e tab con
+      i valori rilevati di hardware e modello.
+- [x] Test: metrica di coverage (`pytest-cov`) e test d'integrazione "smoke"
+      che esegua `llama-bench` su un modello piccolo quando presente.
+
+## Note
+
+`llama-autotune` esegue benchmark reali tramite `llama-bench`. I risultati dipendono quindi dalla configurazione effettiva del sistema, dal modello GGUF utilizzato, dalla quantizzazione, dal backend, dalla memoria disponibile e dai parametri di esecuzione.
+
+La configurazione trovata come migliore rappresenta il risultato della ricerca effettuata sul sistema e sul modello utilizzati durante l'ottimizzazione.

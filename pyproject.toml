@@ -50,7 +50,17 @@ llama-autotune = "llama_autotune.cli:main"
 testpaths = ["tests"]
 pythonpath = ["src"]
 
+[tool.coverage.run]
+source = ["src/llama_autotune"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-cov>=7.0",
+    "httpx>=0.28",
 ]

@@ -9,3 +9,17 @@ build/
 profiles/*
 !profiles/.gitkeep
 *.json
+
+# Backup di lavoro (da rimuovere al termine delle modifiche)
+*.bak
+*.bak-*
+*.backup.*
+
+# Log e output di run
+*.log
+logs/
+results/
+
+# Coverage
+.coverage
+htmlcov/

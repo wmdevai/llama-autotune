@@ -35,6 +35,7 @@ from .models import (
     SearchConfig,
 )
 from .search_space import ParamDef, config_from_params, get_search_space
+from . import candidates
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class Optimizer:
         n_trials_stage_c: int = 20,
         llama_dir: str | None = None,
         slow: bool = False,
+        cache: dict[str, BenchmarkResult] | None = None,
     ):
         """Initialise the optimizer.
 
@@ -66,6 +68,9 @@ class Optimizer:
                 the ``LLAMA_CPP_DIR`` environment variable is updated.
             slow: If True, fallback configs are tried even when the baseline is
                 too slow for the host machine.
+            cache: Optional pre-populated benchmark cache (config JSON ->
+                result). Used to resume a previous search without repeating
+                benchmarks.
         """
         self.model_path = model_path
         self.objective = objective
@@ -85,6 +90,8 @@ class Optimizer:
         self._best_score: float = 0.0
         self._total_evals: int = 0
         self._cache: dict[str, BenchmarkResult] = {}
+        if cache:
+            self._cache.update(cache)
         self._baseline_result: BenchmarkResult | None = None
 
         self._speed_tier: str = "unknown"
@@ -569,7 +576,7 @@ class Optimizer:
 
         logger.info(
             f"[C] candidate_space="
-            f"{len(candidate_params) + len(cached_keys)} "
+            f"{len(candidate_params)} "
             f"benchmarkable_candidates={len(available_keys)} "
             f"cached_candidates={len(cached_keys)}"
         )
@@ -729,24 +736,57 @@ class Optimizer:
                 f"available_candidates={len(available_keys)}"
             )
 
-            for params in selected_candidates:
+            # Esegui i trial uno per uno con early stopping
+            for trial_idx, params in enumerate(selected_candidates):
                 study.enqueue_trial(params)
-
-            study.optimize(
-                objective_fn,
-                n_trials=len(selected_candidates),
-                show_progress_bar=False,
-            )
-        else:
-            while (
-                valid_evals < target_evals
-                and len(seen_keys) < len(available_keys)
-            ):
+                
+                # Esegui un singolo trial
                 study.optimize(
                     objective_fn,
                     n_trials=1,
                     show_progress_bar=False,
                 )
+                
+                # EARLY STOPPING: se dopo 2 trial consecutivi non c'è miglioramento
+                if len(study.trials) >= 2:
+                    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None]
+                    if len(completed) >= 2:
+                        last = completed[-1].value
+                        prev = completed[-2].value
+                        if prev > 0 and last < self._best_score:
+                            improvement = (last - prev) / prev
+                            if improvement < 0.02:
+                                logger.info(
+                                    f"[C] EARLY STOP: improvement {improvement*100:.1f}% < 2%, "
+                                    f"last: {prev:.2f} -> {last:.2f}, best: {self._best_score:.2f}"
+                                )
+                                # Esci dal loop dei trial
+                                break
+                # Se abbiamo raggiunto il target, fermati
+                if valid_evals >= target_evals:
+                    break
+        else:
+            while (valid_evals < target_evals and len(seen_keys) < len(available_keys)):
+                study.optimize(
+                    objective_fn,
+                    n_trials=1,
+                    show_progress_bar=False,
+                )
+                
+                # EARLY STOPPING: se dopo 2 trial consecutivi non c'è miglioramento
+                if len(study.trials) >= 2:
+                    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None]
+                    if len(completed) >= 2:
+                        last = completed[-1].value
+                        prev = completed[-2].value
+                        if prev > 0 and last < self._best_score:
+                            improvement = (last - prev) / prev
+                            if improvement < 0.02:
+                                logger.info(
+                                    f"[C] EARLY STOP: improvement {improvement*100:.1f}% < 2%, "
+                                    f"last: {prev:.2f} -> {last:.2f}, best: {self._best_score:.2f}"
+                                )
+                                break
 
         completed = sum(
             1
@@ -886,151 +926,12 @@ class Optimizer:
         count: int,
         include_current: bool = True,
     ) -> list[Any]:
-        """Generate strategic context-size candidates around the current value.
-
-        When ``include_current`` is true, the current context is preserved as
-        the first candidate. Otherwise, the requested budget is spent only on
-        alternative context values. Candidates above the current value are
-        preferred and distributed progressively towards the maximum supported
-        context. At the upper bound, refinement proceeds downward in aligned
-        steps.
-        """
-        if count <= 0:
-            return []
-
-        if current_value is None:
-            current_value = param.low
-
-        current = max(
-            param.low,
-            min(param.high, current_value),
+        return candidates.strategic_ctx_values(
+            param,
+            current_value,
+            count,
+            include_current=include_current,
         )
-
-        step = param.step or 1
-
-        current_value_normalized = (
-            int(current)
-            if isinstance(param.low, int)
-            else current
-        )
-
-        values: list[Any] = []
-
-        if include_current:
-            values.append(current_value_normalized)
-
-        if current >= param.high:
-            distance = 1
-
-            while len(values) < count:
-                candidate = current - distance * step
-
-                if candidate < param.low:
-                    break
-
-                value = (
-                    int(candidate)
-                    if isinstance(param.low, int)
-                    else candidate
-                )
-
-                if value not in values:
-                    values.append(value)
-
-                distance += 1
-
-            return values[:count]
-
-        remaining = count - len(values)
-
-        if remaining <= 0:
-            return values[:count]
-
-        # When the current value is excluded, Stage B should spend the
-        # budget on real alternatives starting from the nearest aligned
-        # value. Preserve the maximum context as the final candidate when
-        # more than one alternative is requested.
-        if not include_current:
-            candidate = current + step
-
-            while (
-                len(values) < count - 1
-                and candidate < param.high
-            ):
-                value = (
-                    int(candidate)
-                    if isinstance(param.low, int)
-                    else candidate
-                )
-
-                if value not in values:
-                    values.append(value)
-
-                candidate += step
-
-            if (
-                len(values) < count
-                and param.high not in values
-            ):
-                values.append(
-                    int(param.high)
-                    if isinstance(param.low, int)
-                    else param.high
-                )
-
-            return values[:count]
-
-        distance = param.high - current
-
-        for index in range(1, remaining + 1):
-            target = current + (
-                distance * index / remaining
-            )
-
-            offset = target - param.low
-
-            aligned = (
-                param.low
-                + ((offset + step - 1) // step) * step
-            )
-
-            if aligned > param.high:
-                aligned = param.high
-
-            value = (
-                int(aligned)
-                if isinstance(param.low, int)
-                else aligned
-            )
-
-            if (
-                value != current_value_normalized
-                and value not in values
-            ):
-                values.append(value)
-
-        candidate = current + step
-
-        while (
-            len(values) < count
-            and candidate <= param.high
-        ):
-            value = (
-                int(candidate)
-                if isinstance(param.low, int)
-                else candidate
-            )
-
-            if (
-                value != current_value_normalized
-                and value not in values
-            ):
-                values.append(value)
-
-            candidate += step
-
-        return values[:count]
-
 
     def _local_values(
         self,
@@ -1038,116 +939,11 @@ class Optimizer:
         current_value: Any,
         count: int,
     ) -> list[Any]:
-        """Generate values locally around the current parameter value.
-
-        Numeric values are explored in alternating order around the current
-        value: one step below, one step above, then progressively farther
-        away. Values are kept within the parameter bounds and duplicates are
-        avoided. If the current value lies outside the search-space bounds,
-        it is clamped only as the center for local candidate generation.
-        """
-        if count <= 0:
-            return []
-
-        if param.is_categorical and param.categories:
-            if current_value in param.categories:
-                start = param.categories.index(current_value)
-                values = []
-                distance = 1
-
-                while (
-                    len(values) < count
-                    and (
-                        start - distance >= 0
-                        or start + distance < len(param.categories)
-                    )
-                ):
-                    for index in (
-                        start - distance,
-                        start + distance,
-                    ):
-                        if (
-                            0 <= index < len(param.categories)
-                            and len(values) < count
-                        ):
-                            values.append(param.categories[index])
-                    distance += 1
-
-                return values
-
-            return param.categories[:count]
-
-        if current_value is None:
-            current_value = param.low
-
-        above_high = current_value > param.high
-
-        current = max(
-            param.low,
-            min(param.high, current_value),
+        return candidates.local_values(
+            param,
+            current_value,
+            count,
         )
-
-        # A value above the search-space maximum can represent a semantic
-        # "maximum" setting, such as n_gpu_layers=999 for full offload.
-        # For n_gpu_layers, treat both that representation and the explicit
-        # numeric maximum as refinement around the full-offload boundary.
-        if (
-            param.name == "n_gpu_layers"
-            and current >= param.high
-        ):
-            step = 1
-        else:
-            step = param.step or max(
-                1,
-                (param.high - param.low) // max(count, 1),
-            )
-
-        values = []
-
-        if above_high and count > 0:
-            values.append(
-                int(current)
-                if isinstance(param.low, int)
-                else current
-            )
-
-        distance = 1
-
-        while len(values) < count:
-            added = False
-
-            for candidate in (
-                current - distance * step,
-                current + distance * step,
-            ):
-                if (
-                    param.low <= candidate <= param.high
-                    and candidate not in values
-                    and candidate != current
-                    and len(values) < count
-                ):
-                    values.append(
-                        int(candidate)
-                        if isinstance(param.low, int)
-                        else candidate
-                    )
-                    added = True
-
-            if (
-                current - distance * step < param.low
-                and current + distance * step > param.high
-            ):
-                break
-
-            if not added and (
-                current - distance * step < param.low
-                and current + distance * step > param.high
-            ):
-                break
-
-            distance += 1
-
-        return values
 
     def _stage_b_ngl_values(
         self,
@@ -1156,167 +952,27 @@ class Optimizer:
         count: int,
         include_current: bool = True,
     ) -> list[Any]:
-        """Generate Stage B candidates for GPU layer offload.
-
-        Optionally preserves a semantic full-offload value from the current
-        configuration when it exceeds the numeric model layer range, then
-        fills the remaining allocation with the highest concrete layer counts.
-        """
-        if count <= 0:
-            return []
-
-        values: list[Any] = []
-
-        if (
-            include_current
-            and current_value is not None
-            and current_value > param.high
-        ):
-            values.append(current_value)
-
-        candidate = int(param.high)
-
-        while len(values) < count and candidate >= int(param.low):
-            if candidate not in values:
-                values.append(candidate)
-            candidate -= 1
-
-        return values
+        return candidates.stage_b_ngl_values(
+            param,
+            current_value,
+            count,
+            include_current=include_current,
+        )
 
     def _stage_b_spread_values(
         self,
         param: ParamDef,
         count: int,
     ) -> list[Any]:
-        """Generate values spread across the full parameter range.
-
-        Unlike ``_grid_values``, this method uses the available Stage B
-        allocation to cover the low and high bounds of the parameter range,
-        with evenly distributed intermediate values when more candidates are
-        requested.
-        """
-        if count <= 0:
-            return []
-
-        if param.is_categorical and param.categories:
-            if count == 1:
-                return [param.categories[0]]
-
-            if count >= len(param.categories):
-                return param.categories[:]
-
-            indices = [
-                round(
-                    index * (len(param.categories) - 1)
-                    / (count - 1)
-                )
-                for index in range(count)
-            ]
-
-            return [
-                param.categories[index]
-                for index in indices
-            ]
-
-        if count == 1:
-            return [
-                int(param.low)
-                if isinstance(param.low, int)
-                else param.low
-            ]
-
-        if param.step:
-            total_steps = int(
-                (param.high - param.low) // param.step
-            )
-
-            if count > total_steps + 1:
-                count = total_steps + 1
-
-            indices = [
-                round(
-                    index * total_steps / (count - 1)
-                )
-                for index in range(count)
-            ]
-
-            values = [
-                param.low + index * param.step
-                for index in indices
-            ]
-
-            return [
-                int(value)
-                if isinstance(param.low, int)
-                else value
-                for value in values
-            ]
-
-        values = []
-
-        for index in range(count):
-            value = (
-                param.low
-                + (param.high - param.low)
-                * index
-                / (count - 1)
-            )
-
-            if isinstance(param.low, int):
-                value = int(value)
-
-            if value not in values:
-                values.append(value)
-
-        return values
+        return candidates.stage_b_spread_values(param, count)
 
     def _grid_values(self, param: ParamDef, count: int) -> list[Any]:
-        """Generate up to ``count`` evenly-spaced values for a parameter.
-
-        For categorical parameters the first ``count`` categories are
-        returned.  For numeric parameters with a step size the values are
-        produced by repeated addition; otherwise a uniform step is computed.
-
-        Args:
-            param: The parameter definition.
-            count: Maximum number of values to return.
-
-        Returns:
-            A list of parameter values to evaluate.
-        """
-        if param.is_categorical and param.categories:
-            return param.categories[:count]
-        if param.step:
-            values = []
-            v = param.low
-            while v <= param.high and len(values) < count:
-                values.append(int(v) if isinstance(param.low, int) else v)
-                v += param.step
-            return values
-        step = max(1, (param.high - param.low) // (count - 1))
-        return list(range(param.low, param.high + 1, step))
+        return candidates.grid_values(param, count)
 
     def _sample_param(
         self, trial: optuna.Trial, name: str, pdef: ParamDef
     ) -> Any:
-        """Sample a parameter value for an Optuna trial.
-
-        Delegates to the appropriate ``suggest_*`` method based on whether the
-        parameter is categorical or integer-valued.
-
-        Args:
-            trial: The Optuna trial object.
-            name: The parameter name.
-            pdef: The parameter definition from the search space.
-
-        Returns:
-            A sampled value for the parameter.
-        """
-        if pdef.is_categorical and pdef.categories:
-            return trial.suggest_categorical(name, pdef.categories)
-        if pdef.step:
-            return trial.suggest_int(name, pdef.low, pdef.high, step=int(pdef.step))
-        return trial.suggest_int(name, pdef.low, pdef.high)
+        return candidates.sample_param(trial, name, pdef)
 
     def _config_key(self, config: SearchConfig) -> str:
         """Return a deterministic cache key for a config.

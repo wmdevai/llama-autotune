@@ -28,6 +28,7 @@
         </div>
 
         <nav>
+
             <button
                 class="nav-item active"
                 data-tab="dashboard"
@@ -48,6 +49,14 @@
             >
                 Benchmark
             </button>
+
+            <button
+                class="nav-item"
+                data-tab="optimize"
+            >
+                Auto Optimize
+            </button>
+
         </nav>
 
         <div class="sidebar-footer">
@@ -67,6 +76,7 @@
         >
 
             <div class="page-header">
+
                 <div>
                     <h2>Dashboard</h2>
 
@@ -81,32 +91,26 @@
                 >
                     Refresh
                 </button>
+
             </div>
 
 
-            <div
-                id="dashboard-loading"
-                class="status-message"
-            >
-                Detecting hardware...
-            </div>
-
-
-            <div
-                id="dashboard-content"
-                class="dashboard-grid hidden"
-            >
+            <div class="dashboard-grid">
 
                 <div class="card">
                     <h3>CPU</h3>
 
-                    <div id="cpu-name">-</div>
+                    <div
+                        id="cpu-name"
+                        class="metric"
+                    >
+                        Loading...
+                    </div>
 
-                    <div class="muted">
-                        <span id="physical-cores">-</span>
-                        physical /
-                        <span id="logical-cores">-</span>
-                        logical cores
+                    <div
+                        id="cpu-cores"
+                        class="muted"
+                    >
                     </div>
                 </div>
 
@@ -115,14 +119,10 @@
                     <h3>Memory</h3>
 
                     <div
-                        id="ram"
+                        id="ram-gb"
                         class="metric"
                     >
                         -
-                    </div>
-
-                    <div class="muted">
-                        System RAM
                     </div>
                 </div>
 
@@ -130,15 +130,17 @@
                 <div class="card">
                     <h3>GPU</h3>
 
-                    <div id="gpu-name">
+                    <div
+                        id="gpu-name"
+                        class="metric"
+                    >
                         -
                     </div>
 
                     <div
-                        id="gpu-details"
+                        id="gpu-vram"
                         class="muted"
                     >
-                        -
                     </div>
                 </div>
 
@@ -152,45 +154,53 @@
                     >
                         -
                     </div>
-
-                    <div class="muted">
-                        llama.cpp compute backend
-                    </div>
                 </div>
 
 
                 <div class="card wide">
-
                     <h3>llama.cpp</h3>
 
                     <div class="info-grid">
 
                         <div>
                             <span class="label">
-                                Version
-                            </span>
-
-                            <code id="llama-version">-</code>
-                        </div>
-
-                        <div>
-                            <span class="label">
                                 llama-server
                             </span>
 
-                            <code id="llama-server">-</code>
+                            <code
+                                id="llama-server"
+                            >
+                                -
+                            </code>
                         </div>
+
 
                         <div>
                             <span class="label">
                                 llama-bench
                             </span>
 
-                            <code id="llama-bench">-</code>
+                            <code
+                                id="llama-bench"
+                            >
+                                -
+                            </code>
+                        </div>
+
+
+                        <div>
+                            <span class="label">
+                                Version
+                            </span>
+
+                            <code
+                                id="llama-version"
+                            >
+                                -
+                            </code>
                         </div>
 
                     </div>
-
                 </div>
 
             </div>
@@ -211,7 +221,7 @@
                     <h2>Model Inspector</h2>
 
                     <p>
-                        Read metadata directly from a GGUF file.
+                        Inspect GGUF metadata and model characteristics.
                     </p>
                 </div>
 
@@ -220,11 +230,37 @@
 
             <div class="panel">
 
-                <label for="inspect-model-path">
-                    GGUF model path
-                </label>
+                <div class="form-wide">
 
-                <div class="input-row">
+                    <label for="model-select">
+                        Available models
+                    </label>
+
+                    <div class="input-row">
+
+                        <select id="model-select">
+                            <option value="">
+                                Loading models...
+                            </option>
+                        </select>
+
+                        <button
+                            id="refresh-models"
+                            class="secondary-button"
+                        >
+                            Refresh Models
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="form-wide">
+
+                    <label for="inspect-model-path">
+                        Model path
+                    </label>
 
                     <input
                         id="inspect-model-path"
@@ -232,68 +268,103 @@
                         placeholder="/path/to/model.gguf"
                     >
 
-                    <button
-                        id="inspect-button"
-                        class="primary-button"
-                    >
-                        Inspect Model
-                    </button>
-
                 </div>
 
-            </div>
+
+                <button
+                    id="inspect-button"
+                    class="primary-button large-button"
+                >
+                    Inspect Model
+                </button>
 
 
-            <div
-                id="inspect-error"
-                class="error hidden"
-            ></div>
+                <div
+                    id="inspect-error"
+                    class="error hidden"
+                >
+                </div>
 
 
-            <div
-                id="model-result"
-                class="hidden"
-            >
-
-                <div class="card wide">
+                <div
+                    id="inspect-results"
+                    class="panel hidden"
+                    style="margin-top: 24px;"
+                >
 
                     <h3>Model Information</h3>
 
                     <div class="info-grid">
 
                         <div>
-                            <span class="label">Path</span>
-                            <code id="model-path">-</code>
+                            <span class="label">
+                                Path
+                            </span>
+
+                            <code id="inspect-path"></code>
                         </div>
 
-                        <div>
-                            <span class="label">Architecture</span>
-                            <span id="architecture">-</span>
-                        </div>
 
                         <div>
-                            <span class="label">Parameters</span>
-                            <span id="parameters">-</span>
+                            <span class="label">
+                                Architecture
+                            </span>
+
+                            <strong id="inspect-architecture"></strong>
                         </div>
 
-                        <div>
-                            <span class="label">Quantization</span>
-                            <span id="quantization">-</span>
-                        </div>
 
                         <div>
-                            <span class="label">Layers</span>
-                            <span id="layers">-</span>
+                            <span class="label">
+                                Parameters
+                            </span>
+
+                            <strong id="inspect-parameters"></strong>
                         </div>
 
-                        <div>
-                            <span class="label">Context Length</span>
-                            <span id="context-length">-</span>
-                        </div>
 
                         <div>
-                            <span class="label">File Size</span>
-                            <span id="file-size">-</span>
+                            <span class="label">
+                                Quantization
+                            </span>
+
+                            <strong id="inspect-quantization"></strong>
+                        </div>
+
+
+                        <div>
+                            <span class="label">
+                                Layers
+                            </span>
+
+                            <strong id="inspect-layers"></strong>
+                        </div>
+
+
+                        <div>
+                            <span class="label">
+                                Context Length
+                            </span>
+
+                            <strong id="inspect-context"></strong>
+                        </div>
+
+
+                        <div>
+                            <span class="label">
+                                MoE
+                            </span>
+
+                            <strong id="inspect-moe"></strong>
+                        </div>
+
+
+                        <div>
+                            <span class="label">
+                                File Size
+                            </span>
+
+                            <strong id="inspect-size"></strong>
                         </div>
 
                     </div>
@@ -318,7 +389,7 @@
                     <h2>Benchmark</h2>
 
                     <p>
-                        Run llama-bench using the existing llama-autotune backend.
+                        Run a real llama-bench benchmark.
                     </p>
                 </div>
 
@@ -332,7 +403,7 @@
                     <div class="form-wide">
 
                         <label for="benchmark-model-path">
-                            GGUF model path
+                            Model path
                         </label>
 
                         <input
@@ -346,14 +417,15 @@
 
                     <div>
 
-                        <label for="threads">
+                        <label for="benchmark-threads">
                             Threads
                         </label>
 
                         <input
-                            id="threads"
+                            id="benchmark-threads"
                             type="number"
-                            placeholder="Default"
+                            min="1"
+                            placeholder="Auto"
                         >
 
                     </div>
@@ -361,13 +433,14 @@
 
                     <div>
 
-                        <label for="gpu-layers">
+                        <label for="benchmark-gpu-layers">
                             GPU Layers
                         </label>
 
                         <input
-                            id="gpu-layers"
+                            id="benchmark-gpu-layers"
                             type="number"
+                            min="0"
                             value="99"
                         >
 
@@ -376,13 +449,14 @@
 
                     <div>
 
-                        <label for="batch-size">
+                        <label for="benchmark-batch-size">
                             Batch Size
                         </label>
 
                         <input
-                            id="batch-size"
+                            id="benchmark-batch-size"
                             type="number"
+                            min="1"
                             value="2048"
                         >
 
@@ -391,13 +465,14 @@
 
                     <div>
 
-                        <label for="ubatch-size">
+                        <label for="benchmark-ubatch-size">
                             Ubatch Size
                         </label>
 
                         <input
-                            id="ubatch-size"
+                            id="benchmark-ubatch-size"
                             type="number"
+                            min="1"
                             value="512"
                         >
 
@@ -406,12 +481,12 @@
 
                     <div>
 
-                        <label for="cache-type-k">
+                        <label for="benchmark-cache-k">
                             Cache Type K
                         </label>
 
                         <input
-                            id="cache-type-k"
+                            id="benchmark-cache-k"
                             type="text"
                             placeholder="Default"
                         >
@@ -421,12 +496,12 @@
 
                     <div>
 
-                        <label for="cache-type-v">
+                        <label for="benchmark-cache-v">
                             Cache Type V
                         </label>
 
                         <input
-                            id="cache-type-v"
+                            id="benchmark-cache-v"
                             type="text"
                             placeholder="Default"
                         >
@@ -436,15 +511,15 @@
 
                     <div>
 
-                        <label for="repetitions">
+                        <label for="benchmark-repetitions">
                             Repetitions
                         </label>
 
                         <input
-                            id="repetitions"
+                            id="benchmark-repetitions"
                             type="number"
-                            value="1"
                             min="1"
+                            value="1"
                         >
 
                     </div>
@@ -453,15 +528,13 @@
                     <div class="checkbox-row">
 
                         <label>
-
                             <input
-                                id="flash-attn"
+                                id="benchmark-flash-attn"
                                 type="checkbox"
                                 checked
                             >
 
                             Flash Attention
-
                         </label>
 
                     </div>
@@ -470,71 +543,322 @@
 
 
                 <button
-                    id="run-benchmark"
+                    id="benchmark-button"
                     class="primary-button large-button"
                 >
                     Run Benchmark
                 </button>
 
+
+                <div
+                    id="benchmark-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+
+                <div
+                    id="benchmark-error"
+                    class="error hidden"
+                >
+                </div>
+
+
+                <div
+                    id="benchmark-results"
+                    class="hidden"
+                >
+
+                    <div class="results-grid">
+
+                        <div class="result-card">
+                            <span>Prompt TPS</span>
+
+                            <strong
+                                id="result-prompt-tps"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+
+                        <div class="result-card">
+                            <span>Generation TPS</span>
+
+                            <strong
+                                id="result-generation-tps"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+
+                        <div class="result-card">
+                            <span>Startup Time</span>
+
+                            <strong
+                                id="result-startup-time"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+
+                        <div class="result-card">
+                            <span>Memory Usage</span>
+
+                            <strong
+                                id="result-memory"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+
+                        <div class="result-card">
+                            <span>Success</span>
+
+                            <strong
+                                id="result-success"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+                    </div>
+
+
+                    <details>
+
+                        <summary>
+                            Raw Benchmark Output
+                        </summary>
+
+                        <pre
+                            id="benchmark-raw-output"
+                        ></pre>
+
+                    </details>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- AUTO OPTIMIZE -->
+
+        <section
+            id="optimize"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Auto Optimize</h2>
+
+                    <p>
+                        Search for the best llama.cpp configuration using the integrated optimizer.
+                    </p>
+                </div>
+
             </div>
 
 
-            <div
-                id="benchmark-status"
-                class="status-message hidden"
-            ></div>
+            <div class="panel">
 
+                <div class="form-grid">
 
-            <div
-                id="benchmark-error"
-                class="error hidden"
-            ></div>
+                    <div class="form-wide">
 
+                        <label for="optimize-model-path">
+                            Model path
+                        </label>
 
-            <div
-                id="benchmark-result"
-                class="hidden"
-            >
+                        <input
+                            id="optimize-model-path"
+                            type="text"
+                            placeholder="Select a model from Model Inspector"
+                        >
 
-                <div class="results-grid">
-
-                    <div class="result-card">
-                        <span>Prompt TPS</span>
-                        <strong id="prompt-tps">-</strong>
                     </div>
 
-                    <div class="result-card">
-                        <span>Generation TPS</span>
-                        <strong id="generation-tps">-</strong>
+
+                    <div>
+
+                        <label for="optimize-objective">
+                            Optimization objective
+                        </label>
+
+                        <select id="optimize-objective">
+                            <option value="balanced">
+                                Balanced
+                            </option>
+
+                            <option value="max_generation_tps">
+                                Maximum Generation TPS
+                            </option>
+
+                            <option value="max_prompt_tps">
+                                Maximum Prompt TPS
+                            </option>
+                        </select>
+
                     </div>
 
-                    <div class="result-card">
-                        <span>Startup Time</span>
-                        <strong id="startup-time">-</strong>
+
+                    <div>
+
+                        <label for="optimize-trials-b">
+                            Stage B Trials
+                        </label>
+
+                        <input
+                            id="optimize-trials-b"
+                            type="number"
+                            min="1"
+                            value="12"
+                        >
+
                     </div>
 
-                    <div class="result-card">
-                        <span>Memory Usage</span>
-                        <strong id="memory-usage">-</strong>
-                    </div>
 
-                    <div class="result-card">
-                        <span>Success</span>
-                        <strong id="benchmark-success">-</strong>
+                    <div>
+
+                        <label for="optimize-trials-c">
+                            Stage C Trials
+                        </label>
+
+                        <input
+                            id="optimize-trials-c"
+                            type="number"
+                            min="1"
+                            value="20"
+                        >
+
                     </div>
 
                 </div>
 
 
-                <details>
+                <button
+                    id="optimize-button"
+                    class="primary-button large-button"
+                >
+                    Start Optimization
+                </button>
 
-                    <summary>
-                        Raw Benchmark Output
-                    </summary>
 
-                    <pre id="raw-output"></pre>
+                <div
+                    id="optimize-status"
+                    class="status-message hidden"
+                >
+                </div>
 
-                </details>
+
+                <pre
+                    id="optimize-log"
+                    class="log-output hidden"
+                >
+                </pre>
+
+
+                <div
+                    id="optimize-error"
+                    class="error hidden"
+                >
+                </div>
+
+
+                <div
+                    id="optimize-results"
+                    class="hidden"
+                >
+
+                    <div class="results-grid">
+
+                        <div class="result-card">
+                            <span>Best Score</span>
+                            <strong id="optimize-best-score">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>Improvement</span>
+                            <strong id="optimize-improvement">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>Total Evaluations</span>
+                            <strong id="optimize-total-evaluations">-</strong>
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="panel"
+                        style="margin-top: 24px;"
+                    >
+
+                        <h3>Baseline</h3>
+
+                        <div class="results-grid">
+
+                            <div class="result-card">
+                                <span>Prompt TPS</span>
+                                <strong id="optimize-baseline-prompt-tps">-</strong>
+                            </div>
+
+                            <div class="result-card">
+                                <span>Generation TPS</span>
+                                <strong id="optimize-baseline-generation-tps">-</strong>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="panel"
+                        style="margin-top: 24px;"
+                    >
+
+                        <h3>Best Result</h3>
+
+                        <div class="results-grid">
+
+                            <div class="result-card">
+                                <span>Prompt TPS</span>
+                                <strong id="optimize-prompt-tps">-</strong>
+                            </div>
+
+                            <div class="result-card">
+                                <span>Generation TPS</span>
+                                <strong id="optimize-generation-tps">-</strong>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="panel"
+                        style="margin-top: 24px;"
+                    >
+
+                        <h3>Best Configuration</h3>
+
+                        <pre
+                            id="optimize-best-config"
+                        ></pre>
+
+                    </div>
+
+                </div>
 
             </div>
 
@@ -543,6 +867,7 @@
     </main>
 
 </div>
+
 
 <script src="/static/app.js"></script>
 

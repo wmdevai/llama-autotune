@@ -54,9 +54,9 @@ def _set_ctx(config: SearchConfig, model: ModelInfo) -> None:
     """
     ctx = model.training_context
     if ctx > 0:
-        config.ctx_size = min(ctx, 4096)
+        config.ctx_size = min(ctx, 24576)
     else:
-        config.ctx_size = 4096
+        config.ctx_size = 24576
 
 
 def _configure_cpu(config: SearchConfig, hw: HardwareInfo) -> None:

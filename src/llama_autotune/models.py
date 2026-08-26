@@ -86,6 +86,8 @@ class ModelInfo(BaseModel):
     quantization: str = ""
     n_layers: int = 0
     n_heads: int = 0
+    n_kv_heads: int = 0
+    embedding_length: int = 0
     training_context: int = 0
     is_moe: bool = False
     active_parameters: int = 0

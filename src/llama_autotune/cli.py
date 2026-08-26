@@ -25,8 +25,10 @@ from .benchmark import find_llama_bench, find_llama_binary, run_benchmark
 from .database import (
     get_best_benchmark,
     get_session,
+    load_trial_cache,
     save_benchmark,
     save_launch_profile,
+    save_trial_cache,
 )
 from .hardware import detect_hardware
 from .heuristics import generate_initial_config
@@ -197,6 +199,12 @@ def inspect(
         "Heads",
         str(model_info.n_heads),
     )
+
+    if model_info.n_kv_heads and model_info.n_kv_heads != model_info.n_heads:
+        table2.add_row(
+            "KV Heads",
+            str(model_info.n_kv_heads),
+        )
 
     table2.add_row(
         "Context Length",
@@ -406,14 +414,24 @@ def search(
         help="Optimization objective",
     ),
     trials_b: int = typer.Option(
-        15,
+        12,
         "--trials-b",
         help="Stage B trials",
     ),
     trials_c: int = typer.Option(
-        40,
+        20,
         "--trials-c",
         help="Stage C trials",
+    ),
+    slow: bool = typer.Option(
+        False,
+        "--slow",
+        help="Continue optimization with a reduced workload on very slow hardware",
+    ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Reuse cached benchmarks from a previous run for the same model",
     ),
     output_profile: Optional[str] = typer.Option(
         None,
@@ -441,11 +459,28 @@ def search(
 
         raise typer.Exit(code=1)
 
+    cache = None
+
+    if resume:
+        session = get_session()
+
+        cache = load_trial_cache(
+            session,
+            model,
+        )
+
+        console.print(
+            f"[green]Loaded {len(cache)} cached benchmarks "
+            f"from a previous run[/green]"
+        )
+
     opt = Optimizer(
         model_path=model,
         objective=obj,
         n_trials_stage_b=trials_b,
         n_trials_stage_c=trials_c,
+        slow=slow,
+        cache=cache,
     )
 
     console.print(
@@ -645,6 +680,12 @@ def search(
         save_benchmark(
             session,
             entry,
+        )
+
+        save_trial_cache(
+            session,
+            model,
+            opt._cache,
         )
 
 
@@ -923,7 +964,7 @@ def main_callback(
     level = (
         logging.DEBUG
         if verbose
-        else logging.WARNING
+        else logging.INFO
     )
 
     logging.basicConfig(

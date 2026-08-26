@@ -84,6 +84,24 @@ class BenchmarkModel(Base):
     timestamp = Column(String)
 
 
+class TrialCacheModel(Base):
+    """Persisted per-trial benchmark cache for ``--resume`` support.
+
+    Stores one row per benchmarked configuration so a subsequent search on
+    the same model can skip configurations it has already evaluated.
+    """
+    __tablename__ = "trial_cache"
+    id = Column(Integer, primary_key=True)
+    model_id = Column(String)
+    config_json = Column(Text)
+    prompt_tps = Column(Float)
+    generation_tps = Column(Float)
+    startup_time = Column(Float)
+    memory_usage = Column(Float)
+    success = Column(Integer)
+    raw_output = Column(Text)
+
+
 class LaunchProfileModel(Base):
     """Persisted launch-profile entry.
 
@@ -186,6 +204,84 @@ def save_launch_profile(session: Session, profile: LaunchProfile) -> None:
         )
         session.add(model)
     session.commit()
+
+
+def save_trial_cache(
+    session: Session,
+    model_id: str,
+    cache: dict[str, BenchmarkResult],
+) -> None:
+    """Upsert the optimizer's in-memory benchmark cache into the database.
+
+    Args:
+        session: An active SQLAlchemy session.
+        model_id: Stable identifier for the model (e.g. its file path).
+        cache: Mapping of config JSON to benchmark result.
+    """
+    for config_json, result in cache.items():
+        existing = (
+            session.query(TrialCacheModel)
+            .filter(
+                TrialCacheModel.model_id == model_id,
+                TrialCacheModel.config_json == config_json,
+            )
+            .first()
+        )
+
+        values = {
+            "prompt_tps": result.prompt_tps,
+            "generation_tps": result.generation_tps,
+            "startup_time": result.startup_time,
+            "memory_usage": result.memory_usage,
+            "success": 1 if result.success else 0,
+            "raw_output": result.raw_output or "",
+        }
+
+        if existing:
+            for key, value in values.items():
+                setattr(existing, key, value)
+        else:
+            session.add(
+                TrialCacheModel(
+                    model_id=model_id,
+                    config_json=config_json,
+                    **values,
+                )
+            )
+
+    session.commit()
+
+
+def load_trial_cache(
+    session: Session,
+    model_id: str,
+) -> dict[str, BenchmarkResult]:
+    """Load cached benchmark results keyed by config JSON.
+
+    Args:
+        session: An active SQLAlchemy session.
+        model_id: Stable identifier for the model (e.g. its file path).
+
+    Returns:
+        A mapping of config JSON to ``BenchmarkResult``.
+    """
+    rows = (
+        session.query(TrialCacheModel)
+        .filter(TrialCacheModel.model_id == model_id)
+        .all()
+    )
+
+    cache: dict[str, BenchmarkResult] = {}
+    for row in rows:
+        cache[row.config_json] = BenchmarkResult(
+            prompt_tps=row.prompt_tps,
+            generation_tps=row.generation_tps,
+            startup_time=row.startup_time,
+            memory_usage=row.memory_usage,
+            success=bool(row.success),
+            raw_output=row.raw_output or "",
+        )
+    return cache
 
 
 def get_best_benchmark(

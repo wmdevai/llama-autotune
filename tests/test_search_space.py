@@ -63,3 +63,36 @@ def test_max_context_objective():
     ctx = space.get("ctx_size")
     assert ctx is not None
     assert ctx.high >= 4096
+
+
+def test_batch_ubatch_are_categorical():
+    space = get_search_space(_hw(), _model(), OptimizeObjective.BALANCED)
+    batch = space["batch_size"]
+    ubatch = space["ubatch_size"]
+    assert batch.is_categorical
+    assert ubatch.is_categorical
+    assert 8192 in batch.categories
+    assert 1024 in ubatch.categories
+
+
+def test_gpu_layers_capped_by_vram():
+    hw = _hw()
+    hw.backend = Backend.CUDA
+    hw.gpu_count = 1
+    hw.vram_per_gpu = [8.0]
+    model = _model()
+    model.file_size_gb = 50.0  # large model, small VRAM
+    space = get_search_space(hw, model, OptimizeObjective.BALANCED)
+    ngl = space["n_gpu_layers"]
+    assert ngl.high < model.n_layers
+    assert ngl.high >= 1
+
+
+def test_gpu_layers_full_range_when_vram_plenty():
+    hw = _hw()
+    hw.backend = Backend.CUDA
+    hw.gpu_count = 1
+    hw.vram_per_gpu = [80.0]
+    model = _model()
+    space = get_search_space(hw, model, OptimizeObjective.BALANCED)
+    assert space["n_gpu_layers"].high == model.n_layers

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .constraints import estimate_max_offloadable_layers
 from .models import Backend, HardwareInfo, ModelInfo, OptimizeObjective, SearchConfig
 
 
@@ -100,7 +101,9 @@ def _gpu_space(
         Dictionary with GPU-related ``ParamDef`` entries.
     """
     space = {}
-    max_layers = min(model.n_layers, 200) if model.n_layers > 0 else 200
+    max_layers = estimate_max_offloadable_layers(model, hw)
+    if max_layers <= 0:
+        max_layers = 200
     space["n_gpu_layers"] = ParamDef(
         "n_gpu_layers", 1, max_layers, step=max(1, max_layers // 4)
     )
@@ -145,8 +148,20 @@ def _throughput_space(
         Dictionary with throughput-related ``ParamDef`` entries.
     """
     space = {}
-    space["batch_size"] = ParamDef("batch_size", 128, 4096, step=128)
-    space["ubatch_size"] = ParamDef("ubatch_size", 64, 1024, step=64)
+    space["batch_size"] = ParamDef(
+        "batch_size",
+        0,
+        0,
+        is_categorical=True,
+        categories=[256, 512, 1024, 2048, 4096, 8192],
+    )
+    space["ubatch_size"] = ParamDef(
+        "ubatch_size",
+        0,
+        0,
+        is_categorical=True,
+        categories=[64, 128, 256, 512, 1024],
+    )
     return space
 
 
@@ -163,8 +178,10 @@ def config_from_params(params: dict[str, Any], base: SearchConfig | None = None)
     Returns:
         A new ``SearchConfig`` with the supplied overrides applied.
     """
-    cfg = base.model_copy() if base is not None else SearchConfig()
-    for key, value in params.items():
-        if hasattr(cfg, key):
-            cfg = SearchConfig.model_validate({**cfg.model_dump(), key: value})
-    return cfg
+    base = base if base is not None else SearchConfig()
+    overrides = {
+        key: value
+        for key, value in params.items()
+        if hasattr(base, key)
+    }
+    return base.model_copy(update=overrides)
