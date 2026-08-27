@@ -12,7 +12,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=3"
+        href="/static/style.css?v=4"
     >
 
     <style>
@@ -71,6 +71,35 @@
         .calibrations-table {
             margin-top: 8px;
         }
+        .presets-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .storage-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .storage-row .name {
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .storage-row .size {
+            color: var(--muted);
+            white-space: nowrap;
+        }
+        .storage-row button {
+            flex-shrink: 0;
+        }
+        @media (max-width: 800px) {
+            .presets-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -120,6 +149,20 @@
                 data-tab="optimize"
             >
                 Ottimizzazione
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="presets"
+            >
+                Presets
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="archivio"
+            >
+                Archivio
             </button>
 
             <button
@@ -217,6 +260,12 @@
 
                     <div
                         id="gpu-vram"
+                        class="muted"
+                    >
+                    </div>
+
+                    <div
+                        id="gpu-sensors"
                         class="muted"
                     >
                     </div>
@@ -1129,6 +1178,153 @@
         </section>
 
 
+        <!-- PRESETS -->
+
+        <section
+            id="presets"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Presets</h2>
+
+                    <p>
+                        Gestisci il presets.ini di llama.cpp: confronta
+                        l'attuale con il consigliato generato
+                        dall'ottimizzazione e applicalo con un backup.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <div class="presets-grid">
+
+                    <div>
+                        <h3>Attuale</h3>
+
+                        <code
+                            id="presets-current-path"
+                            class="path"
+                        ></code>
+
+                        <pre id="presets-current"></pre>
+                    </div>
+
+
+                    <div>
+                        <h3>Consigliato</h3>
+
+                        <code
+                            id="presets-recommended-path"
+                            class="path"
+                        ></code>
+
+                        <pre id="presets-recommended"></pre>
+                    </div>
+
+                </div>
+
+
+                <button
+                    id="presets-apply-button"
+                    class="primary-button large-button"
+                >
+                    Applica consigliato (con backup)
+                </button>
+
+
+                <div
+                    id="presets-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+
+                <div
+                    id="presets-error"
+                    class="error hidden"
+                >
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ARCHIVIO -->
+
+        <section
+            id="archivio"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Archivio</h2>
+
+                    <p>
+                        File generati da llama-autotune e slot KV-cache di
+                        llama.cpp. Puoi eliminarli per alleggerire il sistema.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <h3>File di llama-autotune</h3>
+
+                <div id="storage-items">
+                    <p class="muted">Caricamento...</p>
+                </div>
+
+
+                <h3 style="margin-top: 24px;">
+                    Slot KV-cache (llama.cpp)
+                </h3>
+
+                <p class="muted">
+                    Cartella: <code id="storage-slots-dir"></code>
+                </p>
+
+                <div id="storage-slots">
+                    <p class="muted">Nessuno slot.</p>
+                </div>
+
+                <button
+                    id="storage-delete-all-slots"
+                    class="secondary-button"
+                    style="margin-top: 12px;"
+                >
+                    Elimina tutti gli slot
+                </button>
+
+
+                <div
+                    id="storage-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+
+                <div
+                    id="storage-error"
+                    class="error hidden"
+                >
+                </div>
+
+            </div>
+
+        </section>
+
+
         <!-- GUIDA -->
 
         <section
@@ -1384,7 +1580,7 @@
 </div>
 
 
-<script src="/static/app.js?v=3"></script>
+<script src="/static/app.js?v=4"></script>
 
 </body>
 </html>

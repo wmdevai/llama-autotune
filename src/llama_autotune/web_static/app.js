@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", () => {
     setupBenchmark();
     setupCalibrate();
     setupOptimize();
+    setupPresets();
+    setupStorage();
 });
 
 
@@ -136,6 +138,13 @@ async function loadDashboard() {
                   `(${hw.vram_free_gb} liberi)`
                 : (hw.vram_per_gpu?.length
                     ? `${hw.vram_per_gpu.join(" / ")} GB VRAM`
+                    : "");
+
+        $("gpu-sensors").textContent =
+            hw.gpu_temperature_c != null && hw.gpu_utilization_pct != null
+                ? `${hw.gpu_temperature_c}°C · ${hw.gpu_utilization_pct}%`
+                : (hw.gpu_temperature_c != null
+                    ? `${hw.gpu_temperature_c}°C`
                     : "");
 
         $("backend").textContent =
@@ -759,6 +768,249 @@ function escapeHtml(value) {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
     return div.innerHTML;
+}
+
+
+/* =========================================================
+   PRESETS
+   ========================================================= */
+
+function setupPresets() {
+    $("presets-apply-button").addEventListener(
+        "click",
+        applyPresets
+    );
+
+    loadPresets();
+}
+
+
+async function loadPresets() {
+    const errorBox = $("presets-error");
+
+    setHidden(errorBox, true);
+
+    try {
+        const data = await apiFetch("/api/presets");
+
+        $("presets-current-path").textContent =
+            data.current.path || "-";
+
+        $("presets-recommended-path").textContent =
+            data.recommended.path || "-";
+
+        $("presets-current").textContent =
+            data.current.content || "(vuoto)";
+
+        $("presets-recommended").textContent =
+            data.recommended.content ||
+            "(nessun consigliato — esegui prima un'ottimizzazione)";
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+    }
+}
+
+
+async function applyPresets() {
+    const button = $("presets-apply-button");
+    const statusBox = $("presets-status");
+    const errorBox = $("presets-error");
+
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+
+    if (
+        !confirm(
+            "Sovrascrivere il presets.ini attuale con il consigliato? " +
+            "Verrà creato un backup."
+        )
+    ) {
+        return;
+    }
+
+    button.disabled = true;
+    button.textContent = "Applicazione...";
+
+    try {
+        const data = await apiFetch(
+            "/api/presets/apply",
+            { method: "POST" }
+        );
+
+        statusBox.textContent =
+            "Applicato con successo. " +
+            (data.backup
+                ? `Backup creato: ${data.backup}`
+                : "(nessun file attuale da salvare)");
+
+        setHidden(statusBox, false);
+
+        loadPresets();
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+
+    } finally {
+        button.disabled = false;
+        button.textContent = "Applica consigliato (con backup)";
+    }
+}
+
+
+/* =========================================================
+   ARCHIVIO
+   ========================================================= */
+
+function setupStorage() {
+    $("storage-delete-all-slots").addEventListener(
+        "click",
+        () => deleteStorageItem("slots", "tutti gli slot")
+    );
+
+    loadStorage();
+}
+
+
+async function loadStorage() {
+    const errorBox = $("storage-error");
+
+    setHidden(errorBox, true);
+
+    try {
+        const data = await apiFetch("/api/storage");
+
+        $("storage-slots-dir").textContent =
+            data.slots_dir || "-";
+
+        const itemsBox = $("storage-items");
+
+        if (!data.items.length) {
+            itemsBox.innerHTML =
+                '<p class="muted">Nessun file generato.</p>';
+        } else {
+            itemsBox.innerHTML = "";
+
+            for (const item of data.items) {
+                itemsBox.appendChild(
+                    buildStorageRow(
+                        item.name,
+                        item.size_human,
+                        item.key
+                    )
+                );
+            }
+        }
+
+        const slotsBox = $("storage-slots");
+
+        if (!data.slots.length) {
+            slotsBox.innerHTML =
+                '<p class="muted">Nessuno slot.</p>';
+        } else {
+            slotsBox.innerHTML = "";
+
+            for (const slot of data.slots) {
+                slotsBox.appendChild(
+                    buildStorageRow(
+                        slot.name,
+                        slot.size_human,
+                        `slot:${slot.name}`
+                    )
+                );
+            }
+
+            const totalRow = document.createElement("div");
+            totalRow.className = "storage-row";
+
+            totalRow.innerHTML =
+                '<span class="name"><strong>Totale slot</strong></span>' +
+                `<span class="size">${data.slots_total_human}</span>`;
+
+            slotsBox.appendChild(totalRow);
+        }
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+    }
+}
+
+
+function buildStorageRow(name, size, key) {
+    const row = document.createElement("div");
+    row.className = "storage-row";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "name";
+    nameSpan.textContent = name;
+
+    const sizeSpan = document.createElement("span");
+    sizeSpan.className = "size";
+    sizeSpan.textContent = size;
+
+    const button = document.createElement("button");
+    button.className = "secondary-button";
+    button.textContent = "Elimina";
+    button.addEventListener(
+        "click",
+        () => deleteStorageItem(key, name)
+    );
+
+    row.appendChild(nameSpan);
+    row.appendChild(sizeSpan);
+    row.appendChild(button);
+
+    return row;
+}
+
+
+async function deleteStorageItem(key, label) {
+    const statusBox = $("storage-status");
+    const errorBox = $("storage-error");
+
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+
+    if (!confirm(`Eliminare "${label || key}"?`)) {
+        return;
+    }
+
+    try {
+        const data = await apiFetch(
+            "/api/storage/delete",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({ key }),
+            }
+        );
+
+        statusBox.textContent =
+            `Eliminato. Spazio liberato: ${data.freed_human}.`;
+
+        setHidden(statusBox, false);
+
+        loadStorage();
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+    }
 }
 
 

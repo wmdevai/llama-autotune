@@ -25,6 +25,7 @@ from .benchmark import (
     _gpu_vram_used_mb,
     find_llama_bench,
     find_llama_binary,
+    gpu_sensors,
     run_benchmark,
 )
 from . import calibration, presets, storage
@@ -145,6 +146,8 @@ def dashboard() -> dict:
 
     from . import __version__
 
+    sensors = gpu_sensors()
+
     return {
         "hardware": {
             "cpu_name": hw.cpu_name,
@@ -159,6 +162,8 @@ def dashboard() -> dict:
             "vram_total_gb": round(vram_total_gb, 1),
             "vram_used_gb": vram_used_gb,
             "vram_free_gb": round(vram_total_gb - vram_used_gb, 1),
+            "gpu_temperature_c": sensors.get("temperature_c"),
+            "gpu_utilization_pct": sensors.get("utilization_pct"),
             "backend": hw.backend.value,
         },
         "llama_cpp": {

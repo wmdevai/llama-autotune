@@ -289,6 +289,48 @@ def _probe_vram_command() -> tuple[str, ...] | None:
     return None
 
 
+def gpu_sensors() -> dict:
+    """Return GPU temperature and utilization via nvidia-smi.
+
+    Returns:
+        A dict with ``temperature_c`` and ``utilization_pct``, or an empty
+        dict when the data is unavailable.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=temperature.gpu,utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except Exception:
+        return {}
+
+    if result.returncode != 0 or not result.stdout.strip():
+        return {}
+
+    parts = [
+        part.strip()
+        for part in result.stdout.strip().splitlines()[0].split(",")
+    ]
+
+    if len(parts) < 2:
+        return {}
+
+    try:
+        return {
+            "temperature_c": int(parts[0]),
+            "utilization_pct": int(parts[1]),
+        }
+    except ValueError:
+        return {}
+
+
 def _parse_benchmark_output(output: str) -> dict | None:
     """Parse the JSON output from llama-bench into a flat dictionary.
 

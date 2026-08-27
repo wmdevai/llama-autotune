@@ -60,6 +60,11 @@ def test_dashboard(monkeypatch):
     )
     monkeypatch.setattr(web, "get_llama_version", lambda p: "b1234")
     monkeypatch.setattr(web, "_gpu_vram_used_mb", lambda: 8192.0)
+    monkeypatch.setattr(
+        web,
+        "gpu_sensors",
+        lambda: {"temperature_c": 62, "utilization_pct": 7},
+    )
 
     response = _client().get("/api/dashboard")
 
@@ -71,6 +76,7 @@ def test_dashboard(monkeypatch):
     assert data["llama_cpp"]["version"] == "b1234"
     # New live/usage fields are populated.
     assert data["hardware"]["vram_used_gb"] == 8.0
+    assert data["hardware"]["gpu_temperature_c"] == 62
     assert "system" in data
     assert "models_count" in data["system"]
     assert "calibrations_count" in data["system"]
