@@ -49,9 +49,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurement from the Web UI, and the VRAM estimator prefers stored values
   over the heuristic defaults.
 - The Web UI is fully translated to Italian and gains a **Calibration** tab
-  (measure + inspect saved overhead factors) and a **Guida** tab with a
-  step-by-step wiki-style guide covering the workflow, every parameter, the
-  optimization objectives, practical tips and troubleshooting.
+  (measure + inspect saved overhead factors), a **Presets** tab (view and
+  apply the current vs recommended `presets.ini` with backup), an
+  **Archivio** tab (inspect and delete generated files and KV-cache slots)
+  and a **Guida** tab with a step-by-step wiki-style guide covering the
+  workflow, every parameter, the optimization objectives, practical tips and
+  troubleshooting.
+- The dashboard now shows live GPU VRAM (used/total/free), GPU temperature
+  and utilization, RAM usage, model count/size, calibration count, tool
+  version and free disk space.
 - Unit tests for the byte-level GGUF readers and synthetic-GGUF
   `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
   `candidates.grid_values` / `sample_param`.
