@@ -107,7 +107,8 @@ def index() -> HTMLResponse:
         )
 
     return HTMLResponse(
-        index_path.read_text(encoding="utf-8")
+        index_path.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "no-store"},
     )
 
 
