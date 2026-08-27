@@ -41,4 +41,5 @@ from .database import (
     save_benchmark,
     save_launch_profile,
     get_best_benchmark,
+    session_scope,
 )

@@ -465,6 +465,24 @@ ricerca, UX e testing).
 - [x] Test: metrica di coverage (`pytest-cov`) e test d'integrazione "smoke"
       che esegua `llama-bench` su un modello piccolo quando presente.
 
+### P3 — Qualità dello Stage C e igiene runtime
+
+- [x] Early-stopping di Stage C errato: l'euristica del "miglioramento del 2%
+      tra trial consecutivi" avrebbe fermato lo stage dopo ~2 trial (aggiunta
+      dopo l'ultimo run reale e mai esercitata); sostituita con "nessun nuovo
+      best globale per N trial completati".
+- [x] Stage C non realmente bayesiano: `enqueue_trial` con candidati
+      equispaziati bypassava del tutto il sampler TPE; ora TPE campiona davvero
+      lo spazio categoriale e i duplicati/impossibili vengono potati
+      dall'obiettivo.
+- [x] Log fuorviante: "Best is trial X" di Optuna si riferiva al solo studio
+      locale, non al best globale; Optuna è silenziato durante lo stage e il
+      best globale è loggato esplicitamente.
+- [x] Leak di connessioni SQLite: le sessioni in `cli.py` non venivano mai
+      chiuse; introdotto il context manager `session_scope` in `database.py`.
+- [x] Copertura: test per i lettori GGUF (`model_inspector` 38% → 96%) e per
+      `candidates.grid_values` / `sample_param`; totale 61% → 69%.
+
 ## Note
 
 `llama-autotune` esegue benchmark reali tramite `llama-bench`. I risultati dipendono quindi dalla configurazione effettiva del sistema, dal modello GGUF utilizzato, dalla quantizzazione, dal backend, dalla memoria disponibile e dai parametri di esecuzione.

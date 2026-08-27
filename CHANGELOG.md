@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-27
+
+### Fixed
+
+- Stage C early-stopping heuristic was wrong: it compared the improvement
+  between two *consecutive* trials against a 2% threshold and would have
+  stopped the Bayesian stage after roughly two trials. Replaced with a
+  principled rule that stops only after a streak of completed trials without
+  a new global best (after the TPE startup phase).
+- Stage C was not actually Bayesian: `study.enqueue_trial` fed a
+  deterministic, evenly-spaced candidate list to Optuna, bypassing the TPE
+  surrogate entirely. Stage C now lets TPE sample the categorical local space
+  directly, pruning duplicates, implausible candidates and failed benchmarks
+  inside the objective.
+- SQLite sessions created by the CLI were never closed (leaking the
+  connection pool). Added a `session_scope` context manager and used it in the
+  `benchmark` and `search` commands.
+
+### Changed
+
+- Optuna's per-trial logging ("Best is trial N …") is suppressed during
+  Stage C and the global best score is logged explicitly, avoiding confusion
+  between the local Optuna study and the global search result.
+
+### Added
+
+- Unit tests for the byte-level GGUF readers and synthetic-GGUF
+  `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
+  `candidates.grid_values` / `sample_param` (overall coverage 61% → 69%).
+
 ## [0.4.0] - 2026-08-26
 
 ### Added

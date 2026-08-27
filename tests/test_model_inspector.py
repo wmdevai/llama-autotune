@@ -1,6 +1,9 @@
 """Tests for model_inspector.py — GGUF header parsing and MoE detection."""
 
 from llama_autotune.model_inspector import (
+    _get_int,
+    _get_str,
+    _resolve_block_count,
     _resolve_param_count,
     _resolve_active_param_count,
     _resolve_file_type,
@@ -114,6 +117,46 @@ def test_file_type_unknown():
     kv = _kv()
     result = _resolve_file_type(kv, model_path="")
     assert result == "unknown"
+
+
+def test_file_type_raw_unknown_value_returns_string():
+    kv = _kv(**{"general.file_type": 99})
+    result = _resolve_file_type(kv, model_path="")
+    assert result == "99"
+
+
+# ── _get_str / _get_int ─────────────────────────────────────────────
+
+
+def test_get_str_missing_and_none():
+    assert _get_str({}, "missing") == ""
+    assert _get_str({"key": None}, "key") == ""
+
+
+def test_get_str_bytes_and_scalars():
+    assert _get_str({"key": b"bytes"}, "key") == "bytes"
+    assert _get_str({"key": 42}, "key") == "42"
+
+
+def test_get_int_missing_and_invalid():
+    assert _get_int({}, "missing") == 0
+    assert _get_int({"key": "not-an-int"}, "key", default=5) == 5
+    assert _get_int({"key": None}, "key", default=7) == 7
+
+
+def test_get_int_float_truncates():
+    assert _get_int({"key": 42.9}, "key") == 42
+
+
+# ── _resolve_block_count ────────────────────────────────────────────
+
+
+def test_resolve_block_count_arch_key():
+    assert _resolve_block_count({"llama.block_count": 3}, "llama") == 3
+
+
+def test_resolve_block_count_legacy_fallback():
+    assert _resolve_block_count({"llama.block_count": 5}, "qwen2") == 5
 
 
 # ── inspect_model ────────────────────────────────────────────────────

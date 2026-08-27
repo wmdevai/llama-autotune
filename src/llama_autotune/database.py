@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -148,6 +149,30 @@ def get_session(db_path: str | None = None) -> Session:
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
     return Session(engine)
+
+
+@contextmanager
+def session_scope(db_path: str | None = None):
+    """Yield a session and close it (and its engine) on exit.
+
+    Wraps :func:`get_session` so callers do not leak the SQLite connection
+    pool. The session is closed and the underlying engine disposed in a
+    ``finally`` block regardless of how the body exits.
+
+    Args:
+        db_path: Path to the SQLite database. Defaults to ``get_db_path()``.
+
+    Yields:
+        An open SQLAlchemy ``Session``.
+    """
+    session = get_session(db_path)
+    engine = session.get_bind()
+    try:
+        yield session
+    finally:
+        session.close()
+        if hasattr(engine, "dispose"):
+            engine.dispose()
 
 
 def save_benchmark(session: Session, entry: BenchmarkEntry) -> None:

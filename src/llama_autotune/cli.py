@@ -24,11 +24,11 @@ from rich import box
 from .benchmark import find_llama_bench, find_llama_binary, run_benchmark
 from .database import (
     get_best_benchmark,
-    get_session,
     load_trial_cache,
     save_benchmark,
     save_launch_profile,
     save_trial_cache,
+    session_scope,
 )
 from .hardware import detect_hardware
 from .heuristics import generate_initial_config
@@ -375,12 +375,11 @@ def benchmark(
         result=result,
     )
 
-    session = get_session()
-
-    save_benchmark(
-        session,
-        entry,
-    )
+    with session_scope() as session:
+        save_benchmark(
+            session,
+            entry,
+        )
 
     if output_file:
         with open(
@@ -462,12 +461,11 @@ def search(
     cache = None
 
     if resume:
-        session = get_session()
-
-        cache = load_trial_cache(
-            session,
-            model,
-        )
+        with session_scope() as session:
+            cache = load_trial_cache(
+                session,
+                model,
+            )
 
         console.print(
             f"[green]Loaded {len(cache)} cached benchmarks "
@@ -675,18 +673,17 @@ def search(
             objective=obj,
         )
 
-        session = get_session()
+        with session_scope() as session:
+            save_benchmark(
+                session,
+                entry,
+            )
 
-        save_benchmark(
-            session,
-            entry,
-        )
-
-        save_trial_cache(
-            session,
-            model,
-            opt._cache,
-        )
+            save_trial_cache(
+                session,
+                model,
+                opt._cache,
+            )
 
 
 @app.command(help="Start llama-server with optimal config.")
