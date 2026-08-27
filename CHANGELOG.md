@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   baseline neighbourhood. K-quant overhead is now calibrated to 1.05 from
   real `nvidia-smi` measurements (Q3_K / Q4_K_S / Q5_K_M load at 0.96-0.99×
   file size) instead of the 1.15 default.
+- The VRAM plausibility check considered only the model weights, so the search
+  could recommend a configuration (e.g. `ctx 40960` with the default f16 KV
+  cache) that benchmarks fine but fails to load in `llama-server`, which
+  pre-allocates the full KV buffer. The check now requires weights + KV cache
+  to fit in physical VRAM, so the search finds quantized-KV configs
+  (e.g. `q8_0`) that actually load.
 
 ### Changed
 
@@ -58,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The dashboard now shows live GPU VRAM (used/total/free), GPU temperature
   and utilization, RAM usage, model count/size, calibration count, tool
   version and free disk space.
+- A `balanced_context` objective that balances generation speed and context
+  size, plus a **Setup Guidato** tab: a 5-step guided wizard (model →
+  calibration → priority → optimization → result) that ends with a
+  plain-language summary, apply-to-presets and copy buttons.
+- `cache_type_k` / `cache_type_v` are now part of the search space
+  (`q8_0` / `q4_0`), so the search autonomously discovers that a quantized KV
+  cache lets larger contexts fit. A full-context validation benchmark runs at
+  the end of a search, testing the result with the KV cache actually filled
+  instead of only at the small search workload.
 - Unit tests for the byte-level GGUF readers and synthetic-GGUF
   `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
   `candidates.grid_values` / `sample_param`.
