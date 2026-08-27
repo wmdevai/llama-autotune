@@ -379,6 +379,47 @@ input[type="number"] {
     padding: 11px 12px;
 
     outline: none;
+
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+
+select {
+    width: 100%;
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 8px;
+
+    background: var(--bg-input);
+
+    color: var(--text);
+
+    padding: 11px 12px;
+
+    outline: none;
+
+    cursor: pointer;
+
+    font: inherit;
+
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+
+select:focus {
+    border-color: var(--primary);
+}
+
+
+select option {
+    background: var(--bg-card);
+    color: var(--text);
 }
 
 
