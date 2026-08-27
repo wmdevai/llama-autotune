@@ -32,7 +32,7 @@ class FakeProc:
         self._killed = True
 
 
-def _patch_run_benchmark_deps(monkeypatch, proc, peak_rss=0.0):
+def _patch_run_benchmark_deps(monkeypatch, proc, peak_rss=0.0, peak_vram=0.0):
     monkeypatch.setattr(
         bm,
         "find_llama_bench",
@@ -46,7 +46,7 @@ def _patch_run_benchmark_deps(monkeypatch, proc, peak_rss=0.0):
     monkeypatch.setattr(
         bm,
         "_watch_process",
-        lambda p, timeout: peak_rss,
+        lambda p, timeout: (peak_rss, peak_vram),
     )
 
 
@@ -70,6 +70,17 @@ def test_run_benchmark_success(monkeypatch):
     assert result.prompt_tps == 1000.0
     assert result.generation_tps == 50.0
     assert result.memory_usage == 512.0  # peak RSS fallback
+    assert result.vram_usage == 0.0  # mocked watcher returned 0
+
+
+def test_run_benchmark_records_vram_usage(monkeypatch):
+    proc = FakeProc(returncode=0, stdout='{"avg_ts": 50.0, "n_gen": 8}')
+    _patch_run_benchmark_deps(monkeypatch, proc, peak_rss=512.0, peak_vram=4096.0)
+
+    result = bm.run_benchmark("/models/test.gguf")
+
+    assert result.success is True
+    assert result.vram_usage == 4096.0
 
 
 def test_run_benchmark_nonzero_returncode(monkeypatch):
@@ -167,7 +178,7 @@ def test_watch_process_exits_immediately(monkeypatch):
 
     monkeypatch.setattr(bm, "psutil", FakePsutil)
 
-    assert bm._watch_process(proc, timeout=10) == 0.0
+    assert bm._watch_process(proc, timeout=10) == (0.0, 0.0)
 
 
 def test_watch_process_tracks_peak_rss(monkeypatch):
@@ -196,9 +207,10 @@ def test_watch_process_tracks_peak_rss(monkeypatch):
 
     monkeypatch.setattr(bm, "psutil", FakePsutil)
     monkeypatch.setattr(bm.time, "sleep", lambda _: None)
+    monkeypatch.setattr(bm, "_gpu_vram_used_mb", lambda: 0.0)
 
     # 1 MiB parent + 0.5 MiB child = 1.5 MiB -> 1.5 MB
-    assert bm._watch_process(proc, timeout=10) == 1.5
+    assert bm._watch_process(proc, timeout=10) == (1.5, 0.0)
 
 
 def test_watch_process_kills_on_timeout(monkeypatch):

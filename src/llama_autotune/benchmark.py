@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -120,11 +121,12 @@ def run_benchmark(
             text=True,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
-        peak_rss_mb = _watch_process(proc, timeout)
+        peak_rss_mb, peak_vram_mb = _watch_process(proc, timeout)
         stdout, stderr = proc.communicate()
         elapsed = time.time() - start
         result.startup_time = elapsed
         result.raw_output = stdout
+        result.vram_usage = peak_vram_mb
 
         if proc.returncode != 0:
             result.success = False
@@ -159,29 +161,36 @@ def run_benchmark(
     return result
 
 
-def _watch_process(proc: subprocess.Popen, timeout: int) -> float:
+def _watch_process(proc: subprocess.Popen, timeout: int) -> tuple[float, float]:
     """Track a subprocess until it exits, recording its peak memory usage.
 
-    Polls the process (and its children) via psutil while waiting. Kills
-    the process and raises ``subprocess.TimeoutExpired`` when the timeout
-    is exceeded.
+    Polls the process (and its children) via psutil while waiting, and
+    samples total GPU VRAM roughly once per second. Kills the process and
+    raises ``subprocess.TimeoutExpired`` when the timeout is exceeded.
 
     Args:
         proc: The running subprocess.
         timeout: Maximum wall-clock seconds to wait.
 
     Returns:
-        Peak resident set size in megabytes (0.0 if it could not be read).
+        A ``(peak_rss_mb, peak_gpu_vram_mb)`` tuple. The RSS value is the
+        peak resident set size in megabytes (0.0 if it could not be read)
+        and the VRAM value is the peak total GPU memory in use in megabytes
+        (0.0 when no vendor tool is available).
     """
     start = time.time()
     peak_rss = 0
+    peak_vram = 0.0
+    last_vram_sample = 0.0
+
     try:
         ps = psutil.Process(proc.pid)
     except psutil.Error:
         ps = None
 
     while proc.poll() is None:
-        if time.time() - start > timeout:
+        now = time.time()
+        if now - start > timeout:
             proc.kill()
             proc.communicate()
             raise subprocess.TimeoutExpired(proc.args, timeout)
@@ -193,9 +202,91 @@ def _watch_process(proc: subprocess.Popen, timeout: int) -> float:
                 peak_rss = max(peak_rss, rss)
             except psutil.Error:
                 pass
+        if now - last_vram_sample >= 1.0:
+            peak_vram = max(peak_vram, _gpu_vram_used_mb())
+            last_vram_sample = now
         time.sleep(0.25)
 
-    return round(peak_rss / (1024**2), 1)
+    return round(peak_rss / (1024**2), 1), round(peak_vram, 1)
+
+
+_VRAM_COMMAND: tuple[str, ...] | None = None
+
+
+def _gpu_vram_used_mb() -> float:
+    """Return the total GPU VRAM currently in use, in megabytes.
+
+    Probes ``nvidia-smi`` (then ``rocm-smi``) once and caches the working
+    command so subsequent calls do not re-probe. Returns 0.0 when no
+    supported vendor tool is available or the query fails.
+    """
+    global _VRAM_COMMAND
+
+    if _VRAM_COMMAND is None:
+        _VRAM_COMMAND = _probe_vram_command()
+
+    if _VRAM_COMMAND is None:
+        return 0.0
+
+    try:
+        result = subprocess.run(
+            list(_VRAM_COMMAND),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except Exception:
+        return 0.0
+
+    if result.returncode != 0:
+        return 0.0
+
+    if _VRAM_COMMAND[0] == "rocm-smi":
+        total = 0.0
+        for match in re.finditer(
+            r"VRAM Total Used Memory \(B\):\s*([\d.]+)",
+            result.stdout,
+        ):
+            total += float(match.group(1)) / (1024**2)
+        return round(total, 1)
+
+    # nvidia-smi --query-gpu=memory.used csv: one MiB integer per line.
+    total = 0.0
+    for line in result.stdout.splitlines():
+        try:
+            total += float(line.strip())
+        except ValueError:
+            continue
+    return round(total, 1)
+
+
+def _probe_vram_command() -> tuple[str, ...] | None:
+    """Return a working vendor VRAM-query command, or None."""
+    candidates = (
+        (
+            "nvidia-smi",
+            "--query-gpu=memory.used",
+            "--format=csv,noheader,nounits",
+        ),
+        ("rocm-smi", "--showmeminfo", "vram"),
+    )
+
+    for cmd in candidates:
+        try:
+            result = subprocess.run(
+                list(cmd),
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except Exception:
+            continue
+        if result.returncode == 0 and result.stdout.strip():
+            return cmd
+
+    return None
 
 
 def _parse_benchmark_output(output: str) -> dict | None:

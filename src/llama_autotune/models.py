@@ -101,6 +101,7 @@ class BenchmarkResult(BaseModel):
     generation_tps: float = 0.0
     startup_time: float = 0.0
     memory_usage: float = 0.0
+    vram_usage: float = 0.0
     success: bool = False
     raw_output: str = ""
 
