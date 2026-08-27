@@ -485,6 +485,11 @@ ricerca, UX e testing).
       (`hardware` 57% → 91%), i comandi CLI (`cli` 48% → 84%), il benchmark
       (`benchmark` 54% → 94%) e gli endpoint web (`web` 59% → 84%); totale
       61% → 82%.
+- [x] Stima VRAM troppo conservativa per i K-quants: `Q5` ricalibrato a 1.05
+      da una misura reale `nvidia-smi` (prima cadeva sul default 1.15 e
+      rigettava la config full-offload + ctx grande come "OOM", bloccando la
+      ricerca). Aggiunta misurazione VRAM GPU reale in
+      `BenchmarkResult.vram_usage` + test di realismo gated su GPU/modello.
 
 ## Note
 

@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SQLite sessions created by the CLI were never closed (leaking the
   connection pool). Added a `session_scope` context manager and used it in the
   `benchmark` and `search` commands.
+- The VRAM estimate was too conservative for K-quants: the GQA-aware KV-cache
+  estimate made full offload + large context on a 16 GB GPU estimate over the
+  plausibility threshold, so the search could never explore the known-good
+  baseline neighbourhood. `Q5` overhead is now calibrated to 1.05 from a real
+  `nvidia-smi` measurement instead of the 1.15 default.
+
+### Added
+
+- Real GPU VRAM measurement during benchmarks: `run_benchmark` samples
+  `nvidia-smi` / `rocm-smi` alongside the existing CPU RSS tracking and
+  exposes the peak in `BenchmarkResult.vram_usage`. Real-hardware VRAM
+  realism tests guard that the benchmark reports VRAM and that the heuristic
+  initial config is plausible.
 
 ### Changed
 
