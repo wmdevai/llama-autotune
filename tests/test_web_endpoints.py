@@ -59,6 +59,7 @@ def test_dashboard(monkeypatch):
         lambda base: f"/usr/bin/{base}",
     )
     monkeypatch.setattr(web, "get_llama_version", lambda p: "b1234")
+    monkeypatch.setattr(web, "_gpu_vram_used_mb", lambda: 8192.0)
 
     response = _client().get("/api/dashboard")
 
@@ -68,6 +69,11 @@ def test_dashboard(monkeypatch):
     assert data["hardware"]["backend"] == "cuda"
     assert data["llama_cpp"]["llama_bench"] == "/usr/bin/llama-bench"
     assert data["llama_cpp"]["version"] == "b1234"
+    # New live/usage fields are populated.
+    assert data["hardware"]["vram_used_gb"] == 8.0
+    assert "system" in data
+    assert "models_count" in data["system"]
+    assert "calibrations_count" in data["system"]
 
 
 def test_list_models(monkeypatch, tmp_path):

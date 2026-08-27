@@ -116,9 +116,14 @@ async function loadDashboard() {
             `${hw.logical_cores ?? "-"} logici`;
 
         $("ram-gb").textContent =
-            hw.ram_gb != null
-                ? `${hw.ram_gb} GB`
-                : "-";
+            hw.ram_used_gb != null
+                ? `${hw.ram_used_gb} GB`
+                : (hw.ram_gb != null ? `${hw.ram_gb} GB` : "-");
+
+        $("ram-total").textContent =
+            hw.ram_total_gb != null
+                ? `di ${hw.ram_total_gb} GB totali`
+                : "";
 
         $("gpu-name").textContent =
             hw.gpu_models?.length
@@ -126,9 +131,12 @@ async function loadDashboard() {
                 : "Nessuna GPU rilevata";
 
         $("gpu-vram").textContent =
-            hw.vram_per_gpu?.length
-                ? `${hw.vram_per_gpu.join(" / ")} GB VRAM`
-                : "";
+            hw.vram_total_gb != null && hw.vram_total_gb > 0
+                ? `${hw.vram_used_gb} GB usati / ${hw.vram_total_gb} GB totali ` +
+                  `(${hw.vram_free_gb} liberi)`
+                : (hw.vram_per_gpu?.length
+                    ? `${hw.vram_per_gpu.join(" / ")} GB VRAM`
+                    : "");
 
         $("backend").textContent =
             hw.backend || "-";
@@ -141,6 +149,27 @@ async function loadDashboard() {
 
         $("llama-version").textContent =
             llama.version || "-";
+
+        const sys = data.system || {};
+
+        $("models-count").textContent =
+            sys.models_count ?? "-";
+
+        $("models-size").textContent =
+            sys.models_size_gb != null
+                ? `${sys.models_size_gb} GB`
+                : "";
+
+        $("calibrations-count").textContent =
+            sys.calibrations_count ?? "-";
+
+        $("tool-version").textContent =
+            sys.version || "-";
+
+        $("disk-free").textContent =
+            sys.disk_free_gb != null
+                ? `${sys.disk_free_gb} GB disco libero`
+                : "";
 
     } catch (error) {
         console.error("Impossibile caricare il pannello:", error);

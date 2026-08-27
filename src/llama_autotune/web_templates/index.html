@@ -12,7 +12,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css"
+        href="/static/style.css?v=2"
     >
 
     <style>
@@ -188,13 +188,19 @@
 
 
                 <div class="card">
-                    <h3>Memoria</h3>
+                    <h3>Memoria RAM</h3>
 
                     <div
                         id="ram-gb"
                         class="metric"
                     >
                         -
+                    </div>
+
+                    <div
+                        id="ram-total"
+                        class="muted"
+                    >
                     </div>
                 </div>
 
@@ -225,6 +231,58 @@
                         class="metric"
                     >
                         -
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>Modelli</h3>
+
+                    <div
+                        id="models-count"
+                        class="metric"
+                    >
+                        -
+                    </div>
+
+                    <div
+                        id="models-size"
+                        class="muted"
+                    >
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>Calibrazioni</h3>
+
+                    <div
+                        id="calibrations-count"
+                        class="metric"
+                    >
+                        -
+                    </div>
+
+                    <div class="muted">
+                        fattori salvati
+                    </div>
+                </div>
+
+
+                <div class="card">
+                    <h3>Strumento</h3>
+
+                    <div
+                        id="tool-version"
+                        class="metric"
+                    >
+                        -
+                    </div>
+
+                    <div
+                        id="disk-free"
+                        class="muted"
+                    >
                     </div>
                 </div>
 
@@ -1326,7 +1384,7 @@
 </div>
 
 
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=2"></script>
 
 </body>
 </html>

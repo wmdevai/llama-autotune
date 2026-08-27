@@ -7,19 +7,26 @@ import json
 import logging
 import os
 import queue
+import shutil
 import subprocess
 import threading
 import uuid
 from pathlib import Path
 from typing import Optional
 
+import psutil
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .benchmark import find_llama_bench, find_llama_binary, run_benchmark
+from .benchmark import (
+    _gpu_vram_used_mb,
+    find_llama_bench,
+    find_llama_binary,
+    run_benchmark,
+)
 from . import calibration
 from .hardware import detect_hardware
 from .model_inspector import inspect_model
@@ -111,21 +118,56 @@ def dashboard() -> dict:
     llama_bench = find_llama_bench()
     llama_server = find_llama_binary("llama-server")
 
+    vram_used_mb = _gpu_vram_used_mb()
+    vram_total_gb = sum(hw.vram_per_gpu)
+    vram_used_gb = round(vram_used_mb / 1024.0, 1)
+
+    ram = psutil.virtual_memory()
+    ram_used_gb = round((ram.total - ram.available) / (1024**3), 1)
+    ram_total_gb = round(ram.total / (1024**3), 1)
+
+    models_count = 0
+    models_size_gb = 0.0
+    if MODEL_DIR.is_dir():
+        for path in MODEL_DIR.rglob("*.gguf"):
+            if path.is_file():
+                models_count += 1
+                models_size_gb += path.stat().st_size / (1024**3)
+
+    disk = shutil.disk_usage(
+        MODEL_DIR if MODEL_DIR.is_dir() else Path.home()
+    )
+
+    from . import __version__
+
     return {
         "hardware": {
             "cpu_name": hw.cpu_name,
             "physical_cores": hw.physical_cores,
             "logical_cores": hw.logical_cores,
             "ram_gb": hw.ram_gb,
+            "ram_used_gb": ram_used_gb,
+            "ram_total_gb": ram_total_gb,
             "gpu_count": hw.gpu_count,
             "gpu_models": hw.gpu_models,
             "vram_per_gpu": hw.vram_per_gpu,
+            "vram_total_gb": round(vram_total_gb, 1),
+            "vram_used_gb": vram_used_gb,
+            "vram_free_gb": round(vram_total_gb - vram_used_gb, 1),
             "backend": hw.backend.value,
         },
         "llama_cpp": {
             "llama_server": str(llama_server),
             "llama_bench": str(llama_bench),
             "version": get_llama_version(llama_server),
+        },
+        "system": {
+            "version": __version__,
+            "models_count": models_count,
+            "models_size_gb": round(models_size_gb, 1),
+            "calibrations_count": len(calibration.list_calibrations()),
+            "disk_free_gb": round(disk.free / (1024**3), 1),
+            "models_dir": str(MODEL_DIR),
         },
     }
 
