@@ -33,7 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Unit tests for the byte-level GGUF readers and synthetic-GGUF
   `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
-  `candidates.grid_values` / `sample_param` (overall coverage 61% → 69%).
+  `candidates.grid_values` / `sample_param`.
+- Tests for the subprocess-based hardware detectors (lscpu, nvidia-smi,
+  rocm-smi, system_profiler, vulkaninfo, `llama-bench --list-devices`), the
+  `inspect`/`benchmark`/`launch`/`export`/`import` CLI commands,
+  `run_benchmark`/`_watch_process`, and the dashboard/inspect/benchmark web
+  endpoints (overall coverage 61% → 82%).
 
 ## [0.4.0] - 2026-08-26
 

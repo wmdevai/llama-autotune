@@ -480,8 +480,11 @@ ricerca, UX e testing).
       best globale è loggato esplicitamente.
 - [x] Leak di connessioni SQLite: le sessioni in `cli.py` non venivano mai
       chiuse; introdotto il context manager `session_scope` in `database.py`.
-- [x] Copertura: test per i lettori GGUF (`model_inspector` 38% → 96%) e per
-      `candidates.grid_values` / `sample_param`; totale 61% → 69%.
+- [x] Copertura: test per i lettori GGUF (`model_inspector` 38% → 96%), per
+      `candidates.grid_values` / `sample_param`, per i detector hardware
+      (`hardware` 57% → 91%), i comandi CLI (`cli` 48% → 84%), il benchmark
+      (`benchmark` 54% → 94%) e gli endpoint web (`web` 59% → 84%); totale
+      61% → 82%.
 
 ## Note
 
