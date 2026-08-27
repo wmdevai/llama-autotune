@@ -27,7 +27,7 @@ from .benchmark import (
     find_llama_binary,
     run_benchmark,
 )
-from . import calibration
+from . import calibration, presets, storage
 from .hardware import detect_hardware
 from .model_inspector import inspect_model
 from .models import OptimizeObjective, SearchConfig
@@ -94,6 +94,10 @@ class OptimizeRequest(BaseModel):
 
 class CalibrateRequest(BaseModel):
     model_path: str
+
+
+class DeleteRequest(BaseModel):
+    key: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -359,6 +363,51 @@ def calibrate(request: CalibrateRequest) -> dict:
     }
 
 
+@app.get("/api/presets")
+def presets_view() -> dict:
+    """Return the current and recommended presets.ini."""
+    current = presets.current_content()
+    recommended = presets.recommended_content()
+
+    return {
+        "current": {
+            "path": str(presets.CURRENT_PRESETS_PATH),
+            "content": current,
+        },
+        "recommended": {
+            "path": str(presets.RECOMMENDED_PRESETS_PATH),
+            "content": recommended,
+        },
+        "differ": bool(current) and current != recommended,
+    }
+
+
+@app.post("/api/presets/apply")
+def presets_apply() -> dict:
+    """Overwrite the current presets.ini with the recommended one."""
+    try:
+        return presets.apply_recommended()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/storage")
+def storage_view() -> dict:
+    """Return generated files and KV-cache slots with their sizes."""
+    return storage.list_storage()
+
+
+@app.post("/api/storage/delete")
+def storage_delete(request: DeleteRequest) -> dict:
+    """Delete a generated file, directory, or KV-cache slot."""
+    try:
+        return storage.delete_item(request.key)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/api/optimize")
 def optimize(request: OptimizeRequest) -> dict:
     model_path = request.model_path.strip()
@@ -452,6 +501,12 @@ def _run_optimization(request: OptimizeRequest) -> dict:
 
     baseline_result = optimizer._baseline_result
 
+    try:
+        presets.generate_recommended(best_config, request.model_path)
+        recommended_presets = True
+    except Exception:
+        recommended_presets = False
+
     return {
         "objective": objective.value,
         "best_config": best_config.model_dump(),
@@ -463,6 +518,7 @@ def _run_optimization(request: OptimizeRequest) -> dict:
             else None
         ),
         "final_result": best_result.model_dump(),
+        "recommended_presets": recommended_presets,
     }
 
 

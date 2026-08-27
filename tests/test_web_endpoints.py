@@ -292,3 +292,51 @@ def test_calibrate_failure_reports_error(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 500
+
+
+# ── presets / storage endpoints ─────────────────────────────────────
+
+
+def test_presets_endpoint(monkeypatch, tmp_path):
+    current = tmp_path / "presets.ini"
+    recommended = tmp_path / "recommended.ini"
+    current.write_text("version = 1\n", encoding="utf-8")
+    recommended.write_text("version = 1\n[model]\n", encoding="utf-8")
+
+    monkeypatch.setattr(web.presets, "CURRENT_PRESETS_PATH", current)
+    monkeypatch.setattr(web.presets, "RECOMMENDED_PRESETS_PATH", recommended)
+
+    data = _client().get("/api/presets").json()
+
+    assert data["current"]["content"] == "version = 1\n"
+    assert data["recommended"]["content"] == "version = 1\n[model]\n"
+    assert data["differ"] is True
+
+
+def test_storage_endpoints(monkeypatch, tmp_path):
+    autotune = tmp_path / "autotune"
+    autotune.mkdir()
+    (autotune / "benchmarks.db").write_bytes(b"x" * 1024)
+
+    monkeypatch.setattr(web.storage, "AUTOTUNE_DIR", autotune)
+    monkeypatch.setattr(web.storage, "SLOTS_DIR", tmp_path / "slots")
+
+    listing = _client().get("/api/storage").json()
+    assert len(listing["items"]) == 1
+
+    deleted = _client().post(
+        "/api/storage/delete",
+        json={"key": "benchmarks.db"},
+    ).json()
+    assert deleted["freed_bytes"] == 1024
+
+
+def test_storage_delete_unknown_key(monkeypatch, tmp_path):
+    monkeypatch.setattr(web.storage, "AUTOTUNE_DIR", tmp_path / "autotune")
+    monkeypatch.setattr(web.storage, "SLOTS_DIR", tmp_path / "slots")
+
+    response = _client().post(
+        "/api/storage/delete",
+        json={"key": "bogus"},
+    )
+    assert response.status_code == 400
