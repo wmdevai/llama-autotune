@@ -688,7 +688,8 @@ class Optimizer:
 
         logger.info(
             f"[C] TPE n_startup_trials={n_startup_trials} "
-            f"target_valid_evals={target_evals}"
+            f"target_valid_evals={target_evals} "
+            f"available_candidates={len(available_keys)}"
         )
 
         study = optuna.create_study(
@@ -699,94 +700,64 @@ class Optimizer:
             ),
         )
 
-        # The benchmarkable space is finite and already known. For a real
-        # Optuna study, enqueue a deterministic set of unique candidates so
-        # categorical sampling cannot spend the Stage C budget on duplicates.
-        #
-        # Keep the FakeStudy fallback used by the unit tests: it supplies its
-        # own FakeTrial values and intentionally exposes only optimize().
-        if hasattr(study, "enqueue_trial"):
-            ordered_candidates = list(candidate_params.values())
-            requested_candidates = min(
-                target_evals,
-                len(ordered_candidates),
-            )
+        # Let TPE drive the search instead of enqueuing a deterministic
+        # candidate list (which bypassed the surrogate model entirely).
+        # ``objective_fn`` prunes duplicates, implausible candidates and
+        # failed benchmarks, so the loop simply continues until the
+        # valid-evaluation budget is spent or the finite candidate space is
+        # exhausted. This single path also serves the FakeStudy used by the
+        # unit tests (it only exposes ``optimize``).
+        patience = max(3, target_evals // 4)
+        no_improvement_streak = 0
 
-            if requested_candidates == len(ordered_candidates):
-                selected_candidates = ordered_candidates
-            elif requested_candidates == 1:
-                selected_candidates = [ordered_candidates[0]]
-            else:
-                last_index = len(ordered_candidates) - 1
-                selected_indices = [
-                    round(
-                        index * last_index
-                        / (requested_candidates - 1)
+        original_verbosity = optuna.logging.get_verbosity()
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        try:
+            while (
+                valid_evals < target_evals
+                and len(seen_keys) < len(candidate_params)
+            ):
+                best_before = self._best_score
+                trials_before = len(study.trials)
+
+                study.optimize(
+                    objective_fn,
+                    n_trials=1,
+                    show_progress_bar=False,
+                )
+
+                if len(study.trials) == trials_before:
+                    # Safety net: a sampler that produces no trial would
+                    # otherwise loop forever.
+                    logger.warning(
+                        "[C] STOP sampler produced no trial"
                     )
-                    for index in range(requested_candidates)
-                ]
-                selected_candidates = [
-                    ordered_candidates[index]
-                    for index in selected_indices
-                ]
-
-            logger.info(
-                f"[C] selected_candidates="
-                f"{len(selected_candidates)} "
-                f"available_candidates={len(available_keys)}"
-            )
-
-            # Esegui i trial uno per uno con early stopping
-            for trial_idx, params in enumerate(selected_candidates):
-                study.enqueue_trial(params)
-                
-                # Esegui un singolo trial
-                study.optimize(
-                    objective_fn,
-                    n_trials=1,
-                    show_progress_bar=False,
-                )
-                
-                # EARLY STOPPING: se dopo 2 trial consecutivi non c'è miglioramento
-                if len(study.trials) >= 2:
-                    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None]
-                    if len(completed) >= 2:
-                        last = completed[-1].value
-                        prev = completed[-2].value
-                        if prev > 0 and last < self._best_score:
-                            improvement = (last - prev) / prev
-                            if improvement < 0.02:
-                                logger.info(
-                                    f"[C] EARLY STOP: improvement {improvement*100:.1f}% < 2%, "
-                                    f"last: {prev:.2f} -> {last:.2f}, best: {self._best_score:.2f}"
-                                )
-                                # Esci dal loop dei trial
-                                break
-                # Se abbiamo raggiunto il target, fermati
-                if valid_evals >= target_evals:
                     break
-        else:
-            while (valid_evals < target_evals and len(seen_keys) < len(available_keys)):
-                study.optimize(
-                    objective_fn,
-                    n_trials=1,
-                    show_progress_bar=False,
-                )
-                
-                # EARLY STOPPING: se dopo 2 trial consecutivi non c'è miglioramento
-                if len(study.trials) >= 2:
-                    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None]
-                    if len(completed) >= 2:
-                        last = completed[-1].value
-                        prev = completed[-2].value
-                        if prev > 0 and last < self._best_score:
-                            improvement = (last - prev) / prev
-                            if improvement < 0.02:
-                                logger.info(
-                                    f"[C] EARLY STOP: improvement {improvement*100:.1f}% < 2%, "
-                                    f"last: {prev:.2f} -> {last:.2f}, best: {self._best_score:.2f}"
-                                )
-                                break
+
+                last_trial = study.trials[-1]
+
+                if (
+                    last_trial.state
+                    == optuna.trial.TrialState.COMPLETE
+                ):
+                    if self._best_score > best_before:
+                        no_improvement_streak = 0
+                    else:
+                        no_improvement_streak += 1
+
+                    if (
+                        valid_evals >= n_startup_trials
+                        and no_improvement_streak >= patience
+                    ):
+                        logger.info(
+                            f"[C] EARLY STOP no new global best for "
+                            f"{no_improvement_streak} completed trials "
+                            f"(patience={patience})"
+                        )
+                        break
+        finally:
+            optuna.logging.set_verbosity(original_verbosity)
 
         completed = sum(
             1
@@ -811,7 +782,8 @@ class Optimizer:
             f"pruned={pruned} "
             f"remaining_candidates="
             f"{len(available_keys - seen_keys)} "
-            f"total_benchmarks={self._total_evals}"
+            f"total_benchmarks={self._total_evals} "
+            f"best_score={self._best_score}"
         )
 
         if valid_evals < target_evals:

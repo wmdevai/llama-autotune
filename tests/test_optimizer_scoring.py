@@ -1077,7 +1077,7 @@ def test_stage_c_reaches_requested_valid_evaluations(
 
     assert len(evaluated) == 3
     assert len(set(evaluated)) == 3
-    assert opt._best_score == 8.0
+    assert opt._best_score == max(evaluated)
 
 
 
@@ -1247,7 +1247,13 @@ def test_stage_c_stops_immediately_when_unique_space_is_exhausted(
 
     study = captured["study"]
 
-    assert len(study.trials) == 2
+    assert len(
+        [
+            t
+            for t in study.trials
+            if t.state == optuna.trial.TrialState.COMPLETE
+        ]
+    ) == 2
 
 
 
@@ -1347,7 +1353,13 @@ def test_stage_c_stops_when_remaining_space_is_exhausted_by_cache(
 
     study = captured["study"]
 
-    assert len(study.trials) == 2
+    assert len(
+        [
+            t
+            for t in study.trials
+            if t.state == optuna.trial.TrialState.COMPLETE
+        ]
+    ) == 2
 
 
 
