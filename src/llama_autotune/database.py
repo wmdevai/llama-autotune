@@ -80,6 +80,7 @@ class BenchmarkModel(Base):
     generation_tps = Column(Float)
     startup_time = Column(Float)
     memory_usage = Column(Float)
+    vram_usage = Column(Float)
     success = Column(Integer)
     objective = Column(String)
     timestamp = Column(String)
@@ -99,6 +100,7 @@ class TrialCacheModel(Base):
     generation_tps = Column(Float)
     startup_time = Column(Float)
     memory_usage = Column(Float)
+    vram_usage = Column(Float)
     success = Column(Integer)
     raw_output = Column(Text)
 
@@ -148,7 +150,30 @@ def get_session(db_path: str | None = None) -> Session:
         db_path = get_db_path()
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
+    _ensure_columns(engine)
     return Session(engine)
+
+
+def _ensure_columns(engine) -> None:
+    """Add columns introduced after the initial schema to existing DBs.
+
+    ``Base.metadata.create_all`` creates missing tables but does not add new
+    columns to tables that already exist, so this best-effort helper adds
+    ``vram_usage`` when it is missing.
+    """
+    try:
+        with engine.begin() as conn:
+            for table in ("benchmarks", "trial_cache"):
+                rows = conn.exec_driver_sql(
+                    f"PRAGMA table_info({table})"
+                ).fetchall()
+                existing = {row[1] for row in rows}
+                if "vram_usage" not in existing:
+                    conn.exec_driver_sql(
+                        f"ALTER TABLE {table} ADD COLUMN vram_usage FLOAT"
+                    )
+    except Exception:
+        pass
 
 
 @contextmanager
@@ -190,6 +215,7 @@ def save_benchmark(session: Session, entry: BenchmarkEntry) -> None:
         generation_tps=entry.result.generation_tps,
         startup_time=entry.result.startup_time,
         memory_usage=entry.result.memory_usage,
+        vram_usage=entry.result.vram_usage,
         success=1 if entry.result.success else 0,
         objective=entry.objective.value,
         timestamp=entry.timestamp or datetime.now(timezone.utc).isoformat(),
@@ -258,6 +284,7 @@ def save_trial_cache(
             "generation_tps": result.generation_tps,
             "startup_time": result.startup_time,
             "memory_usage": result.memory_usage,
+            "vram_usage": result.vram_usage,
             "success": 1 if result.success else 0,
             "raw_output": result.raw_output or "",
         }
@@ -303,6 +330,7 @@ def load_trial_cache(
             generation_tps=row.generation_tps,
             startup_time=row.startup_time,
             memory_usage=row.memory_usage,
+            vram_usage=row.vram_usage or 0.0,
             success=bool(row.success),
             raw_output=row.raw_output or "",
         )

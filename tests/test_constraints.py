@@ -9,6 +9,8 @@ from llama_autotune.constraints import (
 )
 from llama_autotune.models import HardwareInfo, ModelInfo, SearchConfig
 
+import pytest
+
 
 def _hw() -> HardwareInfo:
     return HardwareInfo(
@@ -51,8 +53,8 @@ def test_estimate_vram_cpu_only_is_zero():
 def test_estimate_vram_no_kv_offload_is_model_only():
     config = SearchConfig(ctx_size=4096, n_gpu_layers=999, no_kv_offload=True)
     model = _model()
-    # model VRAM only: 4.5 GB * Q4 overhead (1.15) = 5.175 GB
-    assert estimate_vram(config, model, _hw()) == 5.175
+    # model VRAM only: 4.5 GB * Q4_K overhead (1.05) = 4.725 GB
+    assert estimate_vram(config, model, _hw()) == pytest.approx(4.725)
 
 
 def test_is_oom_false():

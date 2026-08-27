@@ -67,17 +67,17 @@ def _estimate_model_vram(
 def _overhead_factor(model: ModelInfo) -> float:
     """Return the runtime overhead multiplier for a quantization.
 
-    ``Q5`` was calibrated against a real ``nvidia-smi`` measurement on a
-    Qwen3-14B Q5_K_M model (peak VRAM during a short benchmark was ~1.0×
-    the file size), so it gets a much smaller factor than the legacy
-    defaults. The remaining quantizations are still heuristic and should
-    be calibrated the same way.
+    K-quants were calibrated against real ``nvidia-smi`` measurements on
+    Qwen3-14B / Qwen3.8-27B models (Q3_K, Q4_K_S, Q5_K_M): peak VRAM was
+    0.96-0.99× the file size, so 1.05 is a slightly conservative runtime
+    factor. The legacy / unmeasured quantizations keep their heuristic
+    factors and should be calibrated the same way.
     """
     quant = model.quantization or ""
+    if "_K" in quant:
+        return 1.05
     if "IQ" in quant:
         return 1.1
-    if "Q5" in quant:
-        return 1.05
     if "Q4" in quant:
         return 1.15
     if "Q8" in quant:
