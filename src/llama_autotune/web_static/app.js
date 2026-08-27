@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupModels();
     setupInspector();
     setupBenchmark();
+    setupCalibrate();
     setupOptimize();
 });
 
@@ -39,13 +40,13 @@ async function apiFetch(url, options = {}) {
     try {
         data = await response.json();
     } catch {
-        // The caller will receive a useful error below.
+        // Il chiamante riceverà un errore utile qui sotto.
     }
 
     if (!response.ok) {
         const message =
             data?.detail ||
-            `Request failed with HTTP ${response.status}`;
+            `Richiesta fallita con HTTP ${response.status}`;
 
         throw new Error(message);
     }
@@ -55,7 +56,7 @@ async function apiFetch(url, options = {}) {
 
 
 /* =========================================================
-   NAVIGATION
+   NAVIGAZIONE
    ========================================================= */
 
 function setupNavigation() {
@@ -87,7 +88,7 @@ function setupNavigation() {
 
 
 /* =========================================================
-   DASHBOARD
+   PANNELLO
    ========================================================= */
 
 function setupDashboard() {
@@ -111,8 +112,8 @@ async function loadDashboard() {
             hw.cpu_name || "-";
 
         $("cpu-cores").textContent =
-            `${hw.physical_cores ?? "-"} physical / ` +
-            `${hw.logical_cores ?? "-"} logical cores`;
+            `${hw.physical_cores ?? "-"} fisici / ` +
+            `${hw.logical_cores ?? "-"} logici`;
 
         $("ram-gb").textContent =
             hw.ram_gb != null
@@ -122,7 +123,7 @@ async function loadDashboard() {
         $("gpu-name").textContent =
             hw.gpu_models?.length
                 ? hw.gpu_models.join(", ")
-                : "No GPU detected";
+                : "Nessuna GPU rilevata";
 
         $("gpu-vram").textContent =
             hw.vram_per_gpu?.length
@@ -142,16 +143,16 @@ async function loadDashboard() {
             llama.version || "-";
 
     } catch (error) {
-        console.error("Unable to load dashboard:", error);
+        console.error("Impossibile caricare il pannello:", error);
 
         $("cpu-name").textContent =
-            "Unable to load dashboard";
+            "Impossibile caricare il pannello";
     }
 }
 
 
 /* =========================================================
-   MODEL SELECTOR
+   SELEZIONE MODELLO
    ========================================================= */
 
 function setupModels() {
@@ -176,14 +177,14 @@ async function loadModels(showStatus = false) {
     const previousValue = select.value;
 
     refreshButton.disabled = true;
-    refreshButton.textContent = "Refreshing...";
+    refreshButton.textContent = "Aggiornamento...";
 
     select.innerHTML = "";
 
     const loadingOption = document.createElement("option");
 
     loadingOption.value = "";
-    loadingOption.textContent = "Loading models...";
+    loadingOption.textContent = "Caricamento modelli...";
 
     select.appendChild(loadingOption);
 
@@ -197,8 +198,8 @@ async function loadModels(showStatus = false) {
         placeholder.value = "";
         placeholder.textContent =
             data.models.length
-                ? "Select a model..."
-                : "No GGUF models found";
+                ? "Seleziona un modello..."
+                : "Nessun modello GGUF trovato";
 
         select.appendChild(placeholder);
 
@@ -215,6 +216,7 @@ async function loadModels(showStatus = false) {
             previousValue,
             $("inspect-model-path").value.trim(),
             $("benchmark-model-path").value.trim(),
+            $("calibrate-model-path").value.trim(),
             $("optimize-model-path").value.trim(),
         ].filter(Boolean);
 
@@ -232,25 +234,25 @@ async function loadModels(showStatus = false) {
 
         if (showStatus) {
             console.info(
-                `Loaded ${data.models.length} GGUF model(s) from ${data.directory}`
+                `Caricati ${data.models.length} modello/i GGUF da ${data.directory}`
             );
         }
 
     } catch (error) {
-        console.error("Unable to load models:", error);
+        console.error("Impossibile caricare i modelli:", error);
 
         select.innerHTML = "";
 
         const option = document.createElement("option");
 
         option.value = "";
-        option.textContent = "Unable to load models";
+        option.textContent = "Impossibile caricare i modelli";
 
         select.appendChild(option);
 
     } finally {
         refreshButton.disabled = false;
-        refreshButton.textContent = "Refresh Models";
+        refreshButton.textContent = "Aggiorna Modelli";
     }
 }
 
@@ -273,6 +275,7 @@ function syncModelPath(modelPath) {
 
     $("inspect-model-path").value = modelPath;
     $("benchmark-model-path").value = modelPath;
+    $("calibrate-model-path").value = modelPath;
     $("optimize-model-path").value = modelPath;
 }
 
@@ -298,12 +301,19 @@ function getSelectedModelPath() {
         return benchmarkValue;
     }
 
+    const calibrateValue =
+        $("calibrate-model-path").value.trim();
+
+    if (calibrateValue) {
+        return calibrateValue;
+    }
+
     return $("optimize-model-path").value.trim();
 }
 
 
 /* =========================================================
-   MODEL INSPECTOR
+   ISPEZIONE MODELLO
    ========================================================= */
 
 function setupInspector() {
@@ -328,7 +338,7 @@ async function inspectModel() {
 
     if (!modelPath) {
         errorBox.textContent =
-            "Select a model or enter a model path.";
+            "Seleziona un modello o inserisci un percorso.";
 
         setHidden(errorBox, false);
 
@@ -338,7 +348,7 @@ async function inspectModel() {
     syncModelPath(modelPath);
 
     button.disabled = true;
-    button.textContent = "Inspecting...";
+    button.textContent = "Ispezione in corso...";
 
     try {
         const data = await apiFetch(
@@ -375,7 +385,7 @@ async function inspectModel() {
             formatNumber(data.training_context);
 
         $("inspect-moe").textContent =
-            data.is_moe ? "Yes" : "No";
+            data.is_moe ? "Sì" : "No";
 
         $("inspect-size").textContent =
             data.file_size_gb != null
@@ -392,7 +402,7 @@ async function inspectModel() {
 
     } finally {
         button.disabled = false;
-        button.textContent = "Inspect Model";
+        button.textContent = "Ispeziona Modello";
     }
 }
 
@@ -426,7 +436,7 @@ async function runBenchmark() {
 
     if (!modelPath) {
         errorBox.textContent =
-            "Select a model or enter a model path.";
+            "Seleziona un modello o inserisci un percorso.";
 
         setHidden(errorBox, false);
 
@@ -473,10 +483,10 @@ async function runBenchmark() {
     };
 
     button.disabled = true;
-    button.textContent = "Running Benchmark...";
+    button.textContent = "Benchmark in corso...";
 
     statusBox.textContent =
-        "Benchmark in progress. This may take a moment.";
+        "Benchmark in corso. Potrebbe richiedere qualche istante.";
 
     setHidden(statusBox, false);
 
@@ -512,16 +522,21 @@ async function runBenchmark() {
                 ? `${Number(result.memory_usage).toFixed(1)} MB`
                 : "-";
 
+        $("result-vram").textContent =
+            result.vram_usage != null && result.vram_usage > 0
+                ? `${Number(result.vram_usage).toFixed(1)} MB`
+                : "-";
+
         $("result-success").textContent =
-            result.success ? "Yes" : "No";
+            result.success ? "Riuscito" : "Fallito";
 
         $("benchmark-raw-output").textContent =
             result.raw_output || "";
 
         statusBox.textContent =
             result.success
-                ? "Benchmark completed successfully."
-                : "Benchmark completed with an error.";
+                ? "Benchmark completato con successo."
+                : "Benchmark completato con un errore.";
 
         setHidden(resultsBox, false);
 
@@ -533,13 +548,193 @@ async function runBenchmark() {
 
     } finally {
         button.disabled = false;
-        button.textContent = "Run Benchmark";
+        button.textContent = "Avvia Benchmark";
     }
 }
 
 
 /* =========================================================
-   AUTO OPTIMIZE
+   CALIBRAZIONE
+   ========================================================= */
+
+function setupCalibrate() {
+    $("calibrate-button").addEventListener(
+        "click",
+        runCalibrate
+    );
+
+    loadCalibrations();
+}
+
+
+async function runCalibrate() {
+    const modelPath =
+        $("calibrate-model-path").value.trim() ||
+        getSelectedModelPath();
+
+    const button = $("calibrate-button");
+
+    const statusBox = $("calibrate-status");
+    const errorBox = $("calibrate-error");
+    const resultsBox = $("calibrate-results");
+
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+    setHidden(resultsBox, true);
+
+    if (!modelPath) {
+        errorBox.textContent =
+            "Seleziona un modello o inserisci un percorso.";
+
+        setHidden(errorBox, false);
+
+        return;
+    }
+
+    syncModelPath(modelPath);
+
+    button.disabled = true;
+    button.textContent = "Calibrazione in corso...";
+
+    statusBox.textContent =
+        "Calibrazione in corso. Verrà eseguito un benchmark controllato.";
+
+    setHidden(statusBox, false);
+
+    try {
+        const data = await apiFetch(
+            "/api/calibrate",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({
+                    model_path: modelPath,
+                }),
+            }
+        );
+
+        $("calib-quantization").textContent =
+            data.quantization ?? "-";
+
+        $("calib-file-size").textContent =
+            data.file_size_mb != null
+                ? `${Number(data.file_size_mb).toFixed(0)} MB`
+                : "-";
+
+        $("calib-vram").textContent =
+            data.measured_vram_mb != null
+                ? `${Number(data.measured_vram_mb).toFixed(0)} MB`
+                : "-";
+
+        $("calib-ratio").textContent =
+            data.measured_ratio != null
+                ? Number(data.measured_ratio).toFixed(3)
+                : "-";
+
+        $("calib-overhead").textContent =
+            data.overhead != null
+                ? Number(data.overhead).toFixed(2)
+                : "-";
+
+        statusBox.textContent =
+            "Calibrazione completata e salvata.";
+
+        setHidden(resultsBox, false);
+
+        loadCalibrations();
+
+    } catch (error) {
+        errorBox.textContent =
+            getErrorMessage(error);
+
+        setHidden(errorBox, false);
+
+    } finally {
+        button.disabled = false;
+        button.textContent = "Calibra Modello";
+    }
+}
+
+
+async function loadCalibrations() {
+    const list = $("calibrations-list");
+
+    if (!list) {
+        return;
+    }
+
+    try {
+        const data = await apiFetch("/api/calibrations");
+        const calibrations = data.calibrations || {};
+
+        const quants = Object.keys(calibrations);
+
+        if (!quants.length) {
+            list.innerHTML =
+                '<p class="muted">Nessuna calibrazione salvata.</p>';
+
+            return;
+        }
+
+        const table = document.createElement("table");
+        table.className = "calibrations-table";
+
+        const thead = document.createElement("thead");
+        thead.innerHTML = `
+            <tr>
+                <th>Quantizzazione</th>
+                <th>Overhead</th>
+                <th>Rapporto VRAM/file</th>
+                <th>VRAM misurata</th>
+                <th>Modello</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+
+        for (const quant of quants.sort()) {
+            const record = calibrations[quant];
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td><strong>${escapeHtml(quant)}</strong></td>
+                <td>${Number(record.overhead).toFixed(2)}</td>
+                <td>${Number(record.measured_ratio).toFixed(3)}</td>
+                <td>${Number(record.measured_vram_mb).toFixed(0)} MB</td>
+                <td><code>${escapeHtml(record.model_path || "")}</code></td>
+            `;
+
+            tbody.appendChild(row);
+        }
+
+        table.appendChild(tbody);
+
+        list.innerHTML = "";
+        list.appendChild(table);
+
+    } catch (error) {
+        console.error("Impossibile caricare le calibrazioni:", error);
+
+        list.innerHTML =
+            '<p class="muted">Impossibile caricare le calibrazioni.</p>';
+    }
+}
+
+
+function escapeHtml(value) {
+    const div = document.createElement("div");
+    div.textContent = String(value ?? "");
+    return div.innerHTML;
+}
+
+
+/* =========================================================
+   OTTIMIZZAZIONE
    ========================================================= */
 
 function setupOptimize() {
@@ -573,7 +768,7 @@ async function runOptimize() {
 
     if (!modelPath) {
         errorBox.textContent =
-            "Select a model from Model Inspector or enter a model path.";
+            "Seleziona un modello dall'Ispezione o inserisci un percorso.";
 
         setHidden(errorBox, false);
 
@@ -602,10 +797,10 @@ async function runOptimize() {
     };
 
     button.disabled = true;
-    button.textContent = "Optimizing...";
+    button.textContent = "Ottimizzazione...";
 
     statusBox.textContent =
-        "Optimization in progress. Multiple real benchmarks will be executed.";
+        "Ottimizzazione in corso. Verranno eseguiti più benchmark reali.";
 
     setHidden(statusBox, false);
 
@@ -639,7 +834,7 @@ async function runOptimize() {
 
     } finally {
         button.disabled = false;
-        button.textContent = "Start Optimization";
+        button.textContent = "Avvia Ottimizzazione";
     }
 }
 
@@ -685,7 +880,7 @@ function streamOptimizeEvents(
 
                     if (statusBox) {
                         statusBox.textContent =
-                            "Optimization completed successfully.";
+                            "Ottimizzazione completata con successo.";
                     }
 
                     setHidden(resultsBox, false);
@@ -747,7 +942,7 @@ function renderOptimizeResult(data) {
 
 
 /* =========================================================
-   HELPERS
+   HELPER
    ========================================================= */
 
 function optionalInteger(value) {

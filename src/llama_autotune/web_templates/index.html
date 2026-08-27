@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
     <meta charset="UTF-8">
 
@@ -14,6 +14,64 @@
         rel="stylesheet"
         href="/static/style.css"
     >
+
+    <style>
+        .guide h3 {
+            margin-top: 28px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+        .guide h4 {
+            margin-top: 20px;
+        }
+        .guide p,
+        .guide li {
+            line-height: 1.6;
+        }
+        .guide code,
+        .calibrations-table code {
+            display: inline;
+            background: var(--bg-input);
+            padding: 1px 5px;
+            border-radius: 4px;
+            color: var(--success);
+            font-size: 0.9em;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            font-size: 0.95em;
+        }
+        th,
+        td {
+            border: 1px solid var(--border);
+            padding: 8px 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background: var(--bg-secondary);
+            color: var(--muted);
+        }
+        .tip {
+            border-left: 4px solid #10b981;
+            background: #0c2a20;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+        .warning {
+            border-left: 4px solid #f59e0b;
+            background: #2a2110;
+            padding: 10px 14px;
+            margin: 12px 0;
+            border-radius: 4px;
+        }
+        .calibrations-table {
+            margin-top: 8px;
+        }
+    </style>
 </head>
 
 <body>
@@ -24,7 +82,7 @@
 
         <div class="brand">
             <h1>llama-autotune</h1>
-            <span>Benchmark & Optimization</span>
+            <span>Benchmark &amp; Ottimizzazione</span>
         </div>
 
         <nav>
@@ -33,14 +91,14 @@
                 class="nav-item active"
                 data-tab="dashboard"
             >
-                Dashboard
+                Pannello
             </button>
 
             <button
                 class="nav-item"
                 data-tab="inspector"
             >
-                Model Inspector
+                Ispezione Modello
             </button>
 
             <button
@@ -52,9 +110,23 @@
 
             <button
                 class="nav-item"
+                data-tab="calibrate"
+            >
+                Calibrazione
+            </button>
+
+            <button
+                class="nav-item"
                 data-tab="optimize"
             >
-                Auto Optimize
+                Ottimizzazione
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="guida"
+            >
+                Guida
             </button>
 
         </nav>
@@ -68,7 +140,7 @@
 
     <main class="content">
 
-        <!-- DASHBOARD -->
+        <!-- PANNELLO -->
 
         <section
             id="dashboard"
@@ -78,10 +150,10 @@
             <div class="page-header">
 
                 <div>
-                    <h2>Dashboard</h2>
+                    <h2>Pannello</h2>
 
                     <p>
-                        Current system and llama.cpp environment.
+                        Sistema attuale e ambiente llama.cpp.
                     </p>
                 </div>
 
@@ -89,7 +161,7 @@
                     id="refresh-dashboard"
                     class="secondary-button"
                 >
-                    Refresh
+                    Aggiorna
                 </button>
 
             </div>
@@ -104,7 +176,7 @@
                         id="cpu-name"
                         class="metric"
                     >
-                        Loading...
+                        Caricamento...
                     </div>
 
                     <div
@@ -116,7 +188,7 @@
 
 
                 <div class="card">
-                    <h3>Memory</h3>
+                    <h3>Memoria</h3>
 
                     <div
                         id="ram-gb"
@@ -190,7 +262,7 @@
 
                         <div>
                             <span class="label">
-                                Version
+                                Versione
                             </span>
 
                             <code
@@ -208,7 +280,7 @@
         </section>
 
 
-        <!-- MODEL INSPECTOR -->
+        <!-- ISPEZIONE MODELLO -->
 
         <section
             id="inspector"
@@ -218,10 +290,10 @@
             <div class="page-header">
 
                 <div>
-                    <h2>Model Inspector</h2>
+                    <h2>Ispezione Modello</h2>
 
                     <p>
-                        Inspect GGUF metadata and model characteristics.
+                        Leggi i metadati GGUF e le caratteristiche del modello.
                     </p>
                 </div>
 
@@ -233,14 +305,14 @@
                 <div class="form-wide">
 
                     <label for="model-select">
-                        Available models
+                        Modelli disponibili
                     </label>
 
                     <div class="input-row">
 
                         <select id="model-select">
                             <option value="">
-                                Loading models...
+                                Caricamento modelli...
                             </option>
                         </select>
 
@@ -248,7 +320,7 @@
                             id="refresh-models"
                             class="secondary-button"
                         >
-                            Refresh Models
+                            Aggiorna Modelli
                         </button>
 
                     </div>
@@ -259,13 +331,13 @@
                 <div class="form-wide">
 
                     <label for="inspect-model-path">
-                        Model path
+                        Percorso del modello
                     </label>
 
                     <input
                         id="inspect-model-path"
                         type="text"
-                        placeholder="/path/to/model.gguf"
+                        placeholder="/percorso/del/modello.gguf"
                     >
 
                 </div>
@@ -275,7 +347,7 @@
                     id="inspect-button"
                     class="primary-button large-button"
                 >
-                    Inspect Model
+                    Ispeziona Modello
                 </button>
 
 
@@ -292,13 +364,13 @@
                     style="margin-top: 24px;"
                 >
 
-                    <h3>Model Information</h3>
+                    <h3>Informazioni sul modello</h3>
 
                     <div class="info-grid">
 
                         <div>
                             <span class="label">
-                                Path
+                                Percorso
                             </span>
 
                             <code id="inspect-path"></code>
@@ -307,7 +379,7 @@
 
                         <div>
                             <span class="label">
-                                Architecture
+                                Architettura
                             </span>
 
                             <strong id="inspect-architecture"></strong>
@@ -316,7 +388,7 @@
 
                         <div>
                             <span class="label">
-                                Parameters
+                                Parametri
                             </span>
 
                             <strong id="inspect-parameters"></strong>
@@ -325,7 +397,7 @@
 
                         <div>
                             <span class="label">
-                                Quantization
+                                Quantizzazione
                             </span>
 
                             <strong id="inspect-quantization"></strong>
@@ -334,7 +406,7 @@
 
                         <div>
                             <span class="label">
-                                Layers
+                                Livelli
                             </span>
 
                             <strong id="inspect-layers"></strong>
@@ -343,7 +415,7 @@
 
                         <div>
                             <span class="label">
-                                Context Length
+                                Lunghezza contesto
                             </span>
 
                             <strong id="inspect-context"></strong>
@@ -361,7 +433,7 @@
 
                         <div>
                             <span class="label">
-                                File Size
+                                Dimensione file
                             </span>
 
                             <strong id="inspect-size"></strong>
@@ -389,7 +461,7 @@
                     <h2>Benchmark</h2>
 
                     <p>
-                        Run a real llama-bench benchmark.
+                        Esegui un benchmark reale con llama-bench.
                     </p>
                 </div>
 
@@ -403,13 +475,13 @@
                     <div class="form-wide">
 
                         <label for="benchmark-model-path">
-                            Model path
+                            Percorso del modello
                         </label>
 
                         <input
                             id="benchmark-model-path"
                             type="text"
-                            placeholder="/path/to/model.gguf"
+                            placeholder="/percorso/del/modello.gguf"
                         >
 
                     </div>
@@ -434,7 +506,7 @@
                     <div>
 
                         <label for="benchmark-gpu-layers">
-                            GPU Layers
+                            Livelli GPU
                         </label>
 
                         <input
@@ -488,7 +560,7 @@
                         <input
                             id="benchmark-cache-k"
                             type="text"
-                            placeholder="Default"
+                            placeholder="Predefinito"
                         >
 
                     </div>
@@ -503,7 +575,7 @@
                         <input
                             id="benchmark-cache-v"
                             type="text"
-                            placeholder="Default"
+                            placeholder="Predefinito"
                         >
 
                     </div>
@@ -512,7 +584,7 @@
                     <div>
 
                         <label for="benchmark-repetitions">
-                            Repetitions
+                            Ripetizioni
                         </label>
 
                         <input
@@ -546,7 +618,7 @@
                     id="benchmark-button"
                     class="primary-button large-button"
                 >
-                    Run Benchmark
+                    Avvia Benchmark
                 </button>
 
 
@@ -594,7 +666,7 @@
 
 
                         <div class="result-card">
-                            <span>Startup Time</span>
+                            <span>Tempo di avvio</span>
 
                             <strong
                                 id="result-startup-time"
@@ -605,7 +677,7 @@
 
 
                         <div class="result-card">
-                            <span>Memory Usage</span>
+                            <span>Memoria (RAM)</span>
 
                             <strong
                                 id="result-memory"
@@ -616,7 +688,18 @@
 
 
                         <div class="result-card">
-                            <span>Success</span>
+                            <span>VRAM GPU</span>
+
+                            <strong
+                                id="result-vram"
+                            >
+                                -
+                            </strong>
+                        </div>
+
+
+                        <div class="result-card">
+                            <span>Esito</span>
 
                             <strong
                                 id="result-success"
@@ -631,7 +714,7 @@
                     <details>
 
                         <summary>
-                            Raw Benchmark Output
+                            Output grezzo del benchmark
                         </summary>
 
                         <pre
@@ -647,7 +730,129 @@
         </section>
 
 
-        <!-- AUTO OPTIMIZE -->
+        <!-- CALIBRAZIONE -->
+
+        <section
+            id="calibrate"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Calibrazione</h2>
+
+                    <p>
+                        Misura la VRAM reale occupata dal modello e salva il
+                        fattore di overhead per la sua quantizzazione.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <div class="form-wide">
+
+                    <label for="calibrate-model-path">
+                        Percorso del modello
+                    </label>
+
+                    <input
+                        id="calibrate-model-path"
+                        type="text"
+                        placeholder="Seleziona un modello dall'Ispezione"
+                    >
+
+                </div>
+
+
+                <button
+                    id="calibrate-button"
+                    class="primary-button large-button"
+                >
+                    Calibra Modello
+                </button>
+
+
+                <div
+                    id="calibrate-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+
+                <div
+                    id="calibrate-error"
+                    class="error hidden"
+                >
+                </div>
+
+
+                <div
+                    id="calibrate-results"
+                    class="hidden"
+                >
+
+                    <h3>Risultato calibrazione</h3>
+
+                    <div class="results-grid">
+
+                        <div class="result-card">
+                            <span>Quantizzazione</span>
+                            <strong id="calib-quantization">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>Dimensione file</span>
+                            <strong id="calib-file-size">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>VRAM misurata</span>
+                            <strong id="calib-vram">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>Rapporto VRAM/file</span>
+                            <strong id="calib-ratio">-</strong>
+                        </div>
+
+                        <div class="result-card">
+                            <span>Fattore overhead salvato</span>
+                            <strong id="calib-overhead">-</strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    class="panel"
+                    style="margin-top: 24px;"
+                >
+
+                    <h3>Calibrazioni salvate</h3>
+
+                    <p class="muted">
+                        Questi fattori vengono usati automaticamente dalla
+                        ricerca al posto dei valori predefiniti.
+                    </p>
+
+                    <div id="calibrations-list">
+                        <p class="muted">Nessuna calibrazione salvata.</p>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- OTTIMIZZAZIONE -->
 
         <section
             id="optimize"
@@ -657,10 +862,11 @@
             <div class="page-header">
 
                 <div>
-                    <h2>Auto Optimize</h2>
+                    <h2>Ottimizzazione</h2>
 
                     <p>
-                        Search for the best llama.cpp configuration using the integrated optimizer.
+                        Cerca la migliore configurazione llama.cpp usando
+                        l'ottimizzatore integrato.
                     </p>
                 </div>
 
@@ -674,13 +880,13 @@
                     <div class="form-wide">
 
                         <label for="optimize-model-path">
-                            Model path
+                            Percorso del modello
                         </label>
 
                         <input
                             id="optimize-model-path"
                             type="text"
-                            placeholder="Select a model from Model Inspector"
+                            placeholder="Seleziona un modello dall'Ispezione"
                         >
 
                     </div>
@@ -689,20 +895,20 @@
                     <div>
 
                         <label for="optimize-objective">
-                            Optimization objective
+                            Obiettivo di ottimizzazione
                         </label>
 
                         <select id="optimize-objective">
                             <option value="balanced">
-                                Balanced
+                                Bilanciato
                             </option>
 
                             <option value="max_generation_tps">
-                                Maximum Generation TPS
+                                Massima velocità di generazione
                             </option>
 
                             <option value="max_prompt_tps">
-                                Maximum Prompt TPS
+                                Massima velocità di prompt
                             </option>
                         </select>
 
@@ -712,7 +918,7 @@
                     <div>
 
                         <label for="optimize-trials-b">
-                            Stage B Trials
+                            Prove Stage B
                         </label>
 
                         <input
@@ -728,7 +934,7 @@
                     <div>
 
                         <label for="optimize-trials-c">
-                            Stage C Trials
+                            Prove Stage C
                         </label>
 
                         <input
@@ -747,7 +953,7 @@
                     id="optimize-button"
                     class="primary-button large-button"
                 >
-                    Start Optimization
+                    Avvia Ottimizzazione
                 </button>
 
 
@@ -780,17 +986,17 @@
                     <div class="results-grid">
 
                         <div class="result-card">
-                            <span>Best Score</span>
+                            <span>Score migliore</span>
                             <strong id="optimize-best-score">-</strong>
                         </div>
 
                         <div class="result-card">
-                            <span>Improvement</span>
+                            <span>Miglioramento</span>
                             <strong id="optimize-improvement">-</strong>
                         </div>
 
                         <div class="result-card">
-                            <span>Total Evaluations</span>
+                            <span>Valutazioni totali</span>
                             <strong id="optimize-total-evaluations">-</strong>
                         </div>
 
@@ -826,7 +1032,7 @@
                         style="margin-top: 24px;"
                     >
 
-                        <h3>Best Result</h3>
+                        <h3>Risultato migliore</h3>
 
                         <div class="results-grid">
 
@@ -850,7 +1056,7 @@
                         style="margin-top: 24px;"
                     >
 
-                        <h3>Best Configuration</h3>
+                        <h3>Configurazione migliore</h3>
 
                         <pre
                             id="optimize-best-config"
@@ -858,6 +1064,257 @@
 
                     </div>
 
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- GUIDA -->
+
+        <section
+            id="guida"
+            class="tab guide"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Guida</h2>
+
+                    <p>
+                        Come usare llama-autotune, passo per passo.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <div class="panel">
+
+                <h3>Cos'è questo strumento</h3>
+
+                <p>
+                    <strong>llama-autotune</strong> ti aiuta a trovare la
+                    configurazione ottimale per eseguire modelli LLM (file
+                    <code>.gguf</code>) con llama.cpp sul tuo computer. Invece
+                    di provare a mano decine di parametri, lo strumento esegue
+                    benchmark reali e trova automaticamente la combinazione che
+                    offre le migliori prestazioni sul tuo hardware.
+                </p>
+
+                <h3>Le funzioni (tab)</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tab</th>
+                            <th>Cosa fa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Pannello</strong></td>
+                            <td>Mostra l'hardware rilevato (CPU, RAM, GPU) e i binari di llama.cpp.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ispezione Modello</strong></td>
+                            <td>Legge i metadati di un file <code>.gguf</code>: architettura, parametri, quantizzazione, livelli, contesto, MoE, dimensione.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Benchmark</strong></td>
+                            <td>Esegue un singolo test con i parametri che scegli tu e mostra velocità, memoria e VRAM.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Calibrazione</strong></td>
+                            <td>Misura quanta VRAM occupa davvero il modello e salva il fattore di overhead per la sua quantizzazione.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ottimizzazione</strong></td>
+                            <td>Cerca automaticamente la configurazione migliore con una ricerca in tre fasi.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Flusso consigliato, passo per passo</h3>
+
+                <h4>Prima volta con un nuovo modello</h4>
+
+                <ol>
+                    <li>
+                        Apri <strong>Ispezione Modello</strong>, seleziona il
+                        modello dall'elenco (o incolla il percorso) e premi
+                        <strong>Ispeziona Modello</strong>. Controlla
+                        quantizzazione, livelli, MoE e dimensione del file.
+                    </li>
+                    <li>
+                        Vai su <strong>Calibrazione</strong> e premi
+                        <strong>Calibra Modello</strong>. In circa 30 secondi
+                        misura la VRAM reale e salva il fattore di overhead per
+                        quel tipo di quantizzazione.
+                    </li>
+                    <li>
+                        Vai su <strong>Ottimizzazione</strong>, scegli
+                        l'obiettivo (consigliato: <em>Bilanciato</em>) e premi
+                        <strong>Avvia Ottimizzazione</strong>. La ricerca
+                        esplora automaticamente i parametri e mostra i progressi
+                        in tempo reale.
+                    </li>
+                    <li>
+                        Al termine, leggi la <em>Configurazione migliore</em> e
+                        il <em>Miglioramento</em> percentuale.
+                    </li>
+                </ol>
+
+                <div class="tip">
+                    <strong>Perché calibrare?</strong> Senza calibrazione la
+                    ricerca usa stime predefinite che possono essere sbagliate
+                    per il tuo modello: potrebbe scartare configurazioni valide
+                    (o accettarne di impossibili). La calibrazione va fatta
+                    <strong>una volta per ogni tipo di quantizzazione</strong>
+                    (es. <code>Q5_K_M</code>) e vale per tutti i modelli con lo
+                    stesso tipo.
+                </div>
+
+                <h4>Benchmark singolo</h4>
+
+                <p>
+                    Usa il tab <strong>Benchmark</strong> per testare una
+                    configurazione specifica (per esempio confrontare due valori
+                    di batch) senza lanciare l'intera ricerca.
+                </p>
+
+                <h3>Spiegazione dei parametri</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Parametro</th>
+                            <th>Significato</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Threads</strong> (<code>-t</code>)</td>
+                            <td>Numero di core CPU usati. Di solito si imposta il numero di core fisici (es. 12). Troppi thread possono rallentare.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Livelli GPU</strong> (<code>-ngl</code>)</td>
+                            <td>Quanti layer del modello vengono caricati sulla GPU. Il massimo (999) carica tutto sulla GPU se la VRAM basta. Se il modello è troppo grande, riduci questo valore.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Batch Size</strong> (<code>-b</code>)</td>
+                            <td>Quanti token vengono elaborati insieme. Valori più alti velocizzano il prompt ma usano più memoria.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ubatch Size</strong> (<code>-ub</code>)</td>
+                            <td>Sotto-batch per l'elaborazione. Deve essere minore o uguale al batch. Valori tipici: 512, 1024.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Context Size</strong> (<code>-c</code>)</td>
+                            <td>Lunghezza massima del contesto in token. Più alto = conversazioni più lunghe, ma più memoria.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Flash Attention</strong> (<code>-fa</code>)</td>
+                            <td>Ottimizzazione che riduce la memoria della cache. Consigliato: attivo.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Cache Type K/V</strong> (<code>-ctk</code>/<code>-ctv</code>)</td>
+                            <td>Quantizzazione della cache KV (es. <code>q8_0</code>). Riduce la memoria con una minima perdita di qualità.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ripetizioni</strong></td>
+                            <td>Numero di ripetizioni del benchmark. Più alto = risultati più stabili.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Obiettivo</strong></td>
+                            <td>Cosa vuoi ottimizzare. Vedi sotto.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Prove Stage B / C</strong></td>
+                            <td>Quante prove esegue la ricerca. Più alto = più accurata ma più lenta.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Gli obiettivi di ottimizzazione</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Obiettivo</th>
+                            <th>Quando usarlo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Bilanciato</strong></td>
+                            <td>Uso generale. Bilancia velocità di generazione (60%) e di prompt (40%). Consigliato.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Massima velocità di generazione</strong></td>
+                            <td>Quando ti interessa soprattutto la velocità con cui viene scritto il testo.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Massima velocità di prompt</strong></td>
+                            <td>Quando elabori documenti molto lunghi (riassunti, analisi di testi).</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Consigli pratici</h3>
+
+                <ul>
+                    <li>Se la GPU ha abbastanza VRAM, lascia <strong>Livelli GPU</strong> al massimo (999) e attiva <strong>Flash Attention</strong>.</li>
+                    <li>Per modelli che non entrano in VRAM, riduci <strong>Livelli GPU</strong> e/o <strong>Context Size</strong>.</li>
+                    <li>Un benchmark da ~20-30 secondi è normale; l'ottimizzazione completa richiede diversi minuti (esegue decine di benchmark).</li>
+                    <li>La calibrazione è rapida e va fatta una volta per quantizzazione.</li>
+                </ul>
+
+                <h3>Cosa significano i risultati</h3>
+
+                <ul>
+                    <li><strong>Score</strong>: rapporto tra la configurazione e il baseline (1.0 = uguale al baseline, 1.05 = 5% migliore).</li>
+                    <li><strong>Miglioramento</strong>: percentuale di miglioramento rispetto al baseline.</li>
+                    <li><strong>Prompt TPS / Generation TPS</strong>: token al secondo rispettivamente per l'elaborazione del prompt e per la generazione del testo.</li>
+                    <li><strong>VRAM GPU</strong>: picco di memoria video misurato durante il benchmark.</li>
+                </ul>
+
+                <h3>Risoluzione dei problemi</h3>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Problema</th>
+                            <th>Soluzione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>"Model file not found"</td>
+                            <td>Controlla il percorso del file <code>.gguf</code>.</td>
+                        </tr>
+                        <tr>
+                            <td>"Calibration benchmark failed"</td>
+                            <td>Il modello non entra in VRAM: riduci <strong>Livelli GPU</strong> e riprova.</td>
+                        </tr>
+                        <tr>
+                            <td>"No GPU VRAM measured"</td>
+                            <td>Serve <code>nvidia-smi</code> (NVIDIA) o <code>rocm-smi</code> (AMD) installati e una GPU presente.</td>
+                        </tr>
+                        <tr>
+                            <td>Benchmark lenti o che falliscono</td>
+                            <td>Riduci <strong>Context Size</strong> o <strong>Livelli GPU</strong>.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="warning">
+                    <strong>Nota:</strong> i benchmark sono reali e dipendono
+                    dal tuo hardware, dal modello e dai parametri usati. La
+                    configurazione trovata come migliore rappresenta il
+                    risultato della ricerca sul tuo sistema.
                 </div>
 
             </div>
