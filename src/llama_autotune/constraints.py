@@ -7,6 +7,7 @@ the current hardware and model.
 
 from __future__ import annotations
 
+from . import calibration
 from .models import HardwareInfo, ModelInfo, SearchConfig
 
 
@@ -74,6 +75,11 @@ def _overhead_factor(model: ModelInfo) -> float:
     factors and should be calibrated the same way.
     """
     quant = model.quantization or ""
+
+    stored = calibration.get_overhead_factor(quant)
+    if stored is not None:
+        return stored
+
     if "_K" in quant:
         return 1.05
     if "IQ" in quant:

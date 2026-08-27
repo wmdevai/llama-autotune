@@ -194,3 +194,95 @@ def test_get_llama_version_error_returns_unknown(monkeypatch):
     monkeypatch.setattr(web.subprocess, "run", boom)
 
     assert web.get_llama_version("/usr/bin/llama-server") == "Unknown"
+
+
+# ── calibration endpoints ────────────────────────────────────────────
+
+
+def test_calibrate_requires_model_path():
+    response = _client().post("/api/calibrate", json={"model_path": "  "})
+    assert response.status_code == 400
+
+
+def test_calibrate_missing_file():
+    response = _client().post(
+        "/api/calibrate",
+        json={"model_path": "/nonexistent/model.gguf"},
+    )
+    assert response.status_code == 404
+
+
+def test_calibrate_runs_and_stores(monkeypatch, tmp_path):
+    model_file = tmp_path / "model.gguf"
+    model_file.write_bytes(b"GGUF")
+
+    monkeypatch.setattr(
+        web,
+        "inspect_model",
+        lambda path: ModelInfo(
+            quantization="Q5_K_M",
+            file_size_gb=9.79,
+        ),
+    )
+    monkeypatch.setattr(
+        web,
+        "detect_hardware",
+        lambda: HardwareInfo(physical_cores=12),
+    )
+    monkeypatch.setattr(
+        web,
+        "run_benchmark",
+        lambda *args, **kwargs: BenchmarkResult(
+            success=True,
+            vram_usage=9952.0,
+        ),
+    )
+    monkeypatch.setattr(
+        web.calibration,
+        "calibrations_path",
+        lambda: str(tmp_path / "calibrations.json"),
+    )
+    monkeypatch.setattr(web.calibration, "_calibrations", None)
+
+    response = _client().post(
+        "/api/calibrate",
+        json={"model_path": str(model_file)},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["quantization"] == "Q5_K_M"
+    assert data["measured_vram_mb"] == 9952.0
+    assert data["overhead"] == 1.0
+
+    # The stored calibration must now be listed.
+    listing = _client().get("/api/calibrations").json()
+    assert "Q5_K_M" in listing["calibrations"]
+
+
+def test_calibrate_failure_reports_error(monkeypatch, tmp_path):
+    model_file = tmp_path / "model.gguf"
+    model_file.write_bytes(b"GGUF")
+
+    monkeypatch.setattr(
+        web,
+        "inspect_model",
+        lambda path: ModelInfo(quantization="Q5_K_M"),
+    )
+    monkeypatch.setattr(
+        web,
+        "detect_hardware",
+        lambda: HardwareInfo(physical_cores=12),
+    )
+    monkeypatch.setattr(
+        web,
+        "run_benchmark",
+        lambda *args, **kwargs: BenchmarkResult(success=False),
+    )
+
+    response = _client().post(
+        "/api/calibrate",
+        json={"model_path": str(model_file)},
+    )
+
+    assert response.status_code == 500

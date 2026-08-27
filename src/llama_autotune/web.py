@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .benchmark import find_llama_bench, find_llama_binary, run_benchmark
+from . import calibration
 from .hardware import detect_hardware
 from .model_inspector import inspect_model
 from .models import OptimizeObjective, SearchConfig
@@ -82,6 +83,10 @@ class OptimizeRequest(BaseModel):
     objective: str = "balanced"
     trials_b: int = 12
     trials_c: int = 20
+
+
+class CalibrateRequest(BaseModel):
+    model_path: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -221,6 +226,93 @@ def benchmark(request: BenchmarkRequest) -> dict:
     return {
         "result": result.model_dump(),
         "config": config.model_dump(),
+    }
+
+
+@app.get("/api/calibrations")
+def calibrations() -> dict:
+    """Return the stored per-quantization VRAM calibrations."""
+    return {"calibrations": calibration.list_calibrations()}
+
+
+@app.post("/api/calibrate")
+def calibrate(request: CalibrateRequest) -> dict:
+    """Measure a model's real VRAM footprint and store the overhead factor.
+
+    Runs one controlled benchmark with full offload and a minimal context so
+    the KV cache is negligible and the measured VRAM is essentially the
+    model weights. The result is stored per quantization and is then used by
+    the VRAM estimator during optimization.
+    """
+    model_path = request.model_path.strip()
+
+    if not model_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Model path is required.",
+        )
+
+    if not os.path.isfile(model_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model file not found: {model_path}",
+        )
+
+    model = inspect_model(model_path)
+    hw = detect_hardware()
+
+    config = SearchConfig(
+        threads=hw.physical_cores or 1,
+        n_gpu_layers=999,
+        ctx_size=4096,
+        flash_attn=True,
+    )
+
+    result = run_benchmark(
+        model_path,
+        config,
+        repetitions=1,
+        timeout=600,
+        n_prompt=16,
+        n_gen=8,
+    )
+
+    if not result.success:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Calibration benchmark failed. The model may be too large "
+                "for full GPU offload. "
+                f"llama-bench output: {result.raw_output[:500]}"
+            ),
+        )
+
+    if result.vram_usage <= 0.0:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "No GPU VRAM was measured. Ensure nvidia-smi or rocm-smi is "
+                "available and a GPU is present."
+            ),
+        )
+
+    file_size_mb = model.file_size_gb * 1024.0
+
+    record = calibration.save_calibration(
+        model.quantization,
+        result.vram_usage,
+        file_size_mb,
+        model_path,
+    )
+
+    return {
+        "quantization": model.quantization,
+        "file_size_mb": record["file_size_mb"],
+        "measured_vram_mb": record["measured_vram_mb"],
+        "measured_ratio": record["measured_ratio"],
+        "overhead": record["overhead"],
+        "model_path": record["model_path"],
+        "timestamp": record["timestamp"],
     }
 
 
