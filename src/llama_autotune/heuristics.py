@@ -27,7 +27,7 @@ def generate_initial_config(hw: HardwareInfo, model: ModelInfo) -> SearchConfig:
     if hw.backend == Backend.CPU:
         _configure_cpu(config, hw)
     else:
-        _configure_gpu(config, hw)
+        _configure_gpu(config, hw, model)
 
     return config
 
@@ -73,16 +73,58 @@ def _configure_cpu(config: SearchConfig, hw: HardwareInfo) -> None:
     config.flash_attn = False
 
 
-def _configure_gpu(config: SearchConfig, hw: HardwareInfo) -> None:
+def _configure_gpu(config: SearchConfig, hw: HardwareInfo, model: ModelInfo) -> None:
     """Tweak config values for GPU-accelerated execution.
 
     Args:
         config: The configuration object to mutate.
         hw: Hardware information used to set thread count and split mode.
+        model: Model metadata used to fit the config to available VRAM.
     """
     config.threads = max(1, min(hw.logical_cores, hw.physical_cores))
     if hw.gpu_count > 1:
         config.split_mode = SplitMode.LAYER
+
+    _fit_to_vram(config, hw, model)
+
+
+def _fit_to_vram(config: SearchConfig, hw: HardwareInfo, model: ModelInfo) -> None:
+    """Adjust a GPU config so it fits in available VRAM.
+
+    Reduces the number of offloaded layers first, then the context size,
+    and finally falls back to CPU-only when nothing fits. This prevents the
+    optimizer from starting from a full-offload baseline that only works
+    thanks to GPU virtual-memory paging.
+    """
+    from .constraints import (
+        estimate_max_offloadable_layers,
+        is_plausible,
+    )
+
+    if is_plausible(config, model, hw):
+        return
+
+    if config.n_gpu_layers and config.n_gpu_layers > 0:
+        config.n_gpu_layers = estimate_max_offloadable_layers(
+            model,
+            hw,
+            ctx_size=config.ctx_size,
+        )
+
+    ctx = config.ctx_size or 24576
+    while not is_plausible(config, model, hw) and ctx > 1024:
+        ctx = max(1024, ctx // 2)
+        config.ctx_size = ctx
+        if config.n_gpu_layers:
+            config.n_gpu_layers = estimate_max_offloadable_layers(
+                model,
+                hw,
+                ctx_size=ctx,
+            )
+
+    if not is_plausible(config, model, hw):
+        config.n_gpu_layers = 0
+        config.flash_attn = False
 
 
 def to_cpu_config(config: SearchConfig) -> SearchConfig:

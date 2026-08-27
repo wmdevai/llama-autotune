@@ -1,5 +1,6 @@
 from llama_autotune.heuristics import generate_initial_config
 from llama_autotune.models import Backend, HardwareInfo, ModelInfo
+from llama_autotune.constraints import is_plausible
 
 
 def _cpu_hw() -> HardwareInfo:
@@ -65,3 +66,36 @@ def test_config_no_training_ctx():
     model.training_context = 0
     cfg = generate_initial_config(_cpu_hw(), model)
     assert cfg.ctx_size == 24576
+
+
+def test_generate_gpu_config_fits_vram():
+    """A model too big for full offload must get a plausible partial-offload
+    baseline instead of n_gpu_layers=999."""
+    model = ModelInfo(
+        architecture="qwen3",
+        n_layers=65,
+        n_heads=24,
+        n_kv_heads=4,
+        embedding_length=5120,
+        file_size_gb=14.3,
+        quantization="Q4_K_S",
+        training_context=40960,
+    )
+    hw = _gpu_hw()
+    hw.vram_per_gpu = [15.9]
+
+    cfg = generate_initial_config(hw, model)
+
+    assert cfg.n_gpu_layers < model.n_layers
+    assert is_plausible(cfg, model, hw)
+
+
+def test_generate_gpu_config_keeps_full_offload_when_fits():
+    model = _model()
+    model.file_size_gb = 3.2
+    hw = _gpu_hw()
+    hw.vram_per_gpu = [80.0]
+
+    cfg = generate_initial_config(hw, model)
+
+    assert cfg.n_gpu_layers == 999

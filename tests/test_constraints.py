@@ -3,6 +3,7 @@ from llama_autotune.constraints import (
     _head_dim,
     _kv_cache_bytes_per_element,
     detect_oom_in_output,
+    estimate_max_offloadable_layers,
     estimate_vram,
     is_oom,
     is_plausible,
@@ -147,6 +148,37 @@ def test_kv_cache_scales_with_gpu_fraction():
 
 def test_kv_cache_bytes_per_element_defaults_to_f16():
     assert _kv_cache_bytes_per_element(None) == 2.0
+
+
+def test_max_offloadable_layers_accounts_for_kv():
+    """A model with a large KV cache must not report full offload as fitting."""
+    model = ModelInfo(
+        n_layers=65,
+        n_heads=24,
+        n_kv_heads=4,
+        embedding_length=5120,
+        file_size_gb=14.3,
+        quantization="Q4_K_S",
+    )
+    hw = HardwareInfo(gpu_count=1, vram_per_gpu=[15.9])
+
+    max_ngl = estimate_max_offloadable_layers(model, hw)
+
+    assert 1 <= max_ngl < model.n_layers
+
+
+def test_max_offloadable_layers_full_when_small_kv():
+    model = ModelInfo(
+        n_layers=40,
+        n_heads=32,
+        n_kv_heads=8,
+        embedding_length=4096,
+        file_size_gb=4.0,
+        quantization="Q4_K_M",
+    )
+    hw = HardwareInfo(gpu_count=1, vram_per_gpu=[24.0])
+
+    assert estimate_max_offloadable_layers(model, hw) == model.n_layers
     assert _kv_cache_bytes_per_element("f16") == 2.0
     assert _kv_cache_bytes_per_element("q8_0") == 1.0
     assert _kv_cache_bytes_per_element("q4_0") == 0.5
