@@ -160,7 +160,12 @@ def _kv_cache_bytes_per_element(cache_type: str | None) -> float:
 
 
 def is_oom(config: SearchConfig, model: ModelInfo, hw: HardwareInfo) -> bool:
-    """Check whether a configuration would exceed available VRAM.
+    """Check whether a configuration would exceed physical VRAM.
+
+    Only the model weights must fit in physical VRAM: the KV cache and
+    runtime buffers can oversubscribe (modern GPUs page them to system RAM
+    via virtual memory), and a real out-of-memory is caught at benchmark
+    time by :func:`detect_oom_in_output`.
 
     Args:
         config: The configuration to evaluate.
@@ -168,46 +173,40 @@ def is_oom(config: SearchConfig, model: ModelInfo, hw: HardwareInfo) -> bool:
         hw: Hardware information (VRAM per GPU, RAM).
 
     Returns:
-        True if the estimated VRAM exceeds what is available.
+        True if the model weights exceed the physical VRAM.
     """
-    estimated = estimate_vram(config, model, hw)
-    available = _available_vram(hw)
-    return estimated > available
+    gpu_fraction = _gpu_fraction(config, model)
+    weights_gb = _estimate_model_vram(config, model, gpu_fraction)
+    physical_vram = sum(hw.vram_per_gpu) if hw.gpu_count > 0 else 0.0
+    return weights_gb > physical_vram
 
 
 def _available_vram(hw: HardwareInfo) -> float:
-    """Return the total usable VRAM (or RAM) in gigabytes.
+    """Return the total physical VRAM (or RAM for CPU-only) in gigabytes.
 
-    For GPU backends this is 90 % of the sum of per-GPU VRAM; for CPU-only
-    backends it is 80 % of system RAM.
-
-    Args:
-        hw: Hardware information containing VRAM/RAM details.
-
-    Returns:
-        Usable memory in GB.
+    No safety discount is applied here: the estimator is calibrated and a
+    real OOM is caught at benchmark time, so using the full physical amount
+    avoids wrongly rejecting configs that fit.
     """
     if hw.gpu_count > 0 and hw.vram_per_gpu:
-        return sum(hw.vram_per_gpu) * 0.9
-    return hw.ram_gb * 0.8
+        return sum(hw.vram_per_gpu)
+    return hw.ram_gb
 
 
 def estimate_max_offloadable_layers(
     model: ModelInfo,
     hw: HardwareInfo,
-    ctx_size: int | None = None,
 ) -> int:
-    """Estimate the maximum number of layers that fit in available VRAM.
+    """Estimate the maximum number of layers whose weights fit in VRAM.
 
-    Accounts for both the model weights and the KV cache at the given
-    context size (defaults to the heuristic baseline context). Used to bound
-    the ``n_gpu_layers`` search range so the search does not waste trials on
-    configurations that cannot fit on the GPU.
+    Only the model weights are considered (the KV cache can oversubscribe
+    via GPU virtual memory). Used to bound the ``n_gpu_layers`` search range
+    so the search does not waste trials on configurations whose weights
+    cannot fit on the GPU.
 
     Args:
         model: Model metadata (layer count, file size, quantization).
         hw: Hardware information (per-GPU VRAM).
-        ctx_size: Context size used for the KV-cache estimate.
 
     Returns:
         An upper bound on ``n_gpu_layers``: at least 1 and at most the
@@ -218,22 +217,11 @@ def estimate_max_offloadable_layers(
         return n_layers
 
     available = _available_vram(hw)
-
-    if ctx_size is None:
-        ctx_size = min(model.training_context or 24576, 24576)
-
-    weights_gb = model.file_size_gb * _overhead_factor(model)
-    kv_gb = _estimate_kv_cache(
-        SearchConfig(ctx_size=ctx_size),
-        model,
-        1.0,
-    )
-
-    total_gb = weights_gb + kv_gb
-    if total_gb <= 0:
+    per_layer = model.file_size_gb * _overhead_factor(model) / n_layers
+    if per_layer <= 0:
         return n_layers
 
-    by_vram = int((available * n_layers) / total_gb)
+    by_vram = int(available / per_layer)
     return max(1, min(n_layers, by_vram))
 
 

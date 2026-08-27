@@ -150,8 +150,9 @@ def test_kv_cache_bytes_per_element_defaults_to_f16():
     assert _kv_cache_bytes_per_element(None) == 2.0
 
 
-def test_max_offloadable_layers_accounts_for_kv():
-    """A model with a large KV cache must not report full offload as fitting."""
+def test_is_oom_allows_kv_oversubscription():
+    """Weights that fit in VRAM must not be rejected even when the KV cache
+    pushes the full estimate over physical VRAM (VMM oversubscription)."""
     model = ModelInfo(
         n_layers=65,
         n_heads=24,
@@ -161,13 +162,30 @@ def test_max_offloadable_layers_accounts_for_kv():
         quantization="Q4_K_S",
     )
     hw = HardwareInfo(gpu_count=1, vram_per_gpu=[15.9])
+    cfg = SearchConfig(n_gpu_layers=999, ctx_size=24576)
 
-    max_ngl = estimate_max_offloadable_layers(model, hw)
+    assert is_oom(cfg, model, hw) is False
+    assert is_plausible(cfg, model, hw) is True
 
-    assert 1 <= max_ngl < model.n_layers
+
+def test_is_oom_rejects_oversized_weights():
+    """A model whose weights alone exceed VRAM must be rejected."""
+    model = ModelInfo(
+        n_layers=65,
+        n_heads=24,
+        n_kv_heads=4,
+        embedding_length=5120,
+        file_size_gb=22.2,
+        quantization="Q4_K_M",
+    )
+    hw = HardwareInfo(gpu_count=1, vram_per_gpu=[15.9])
+    cfg = SearchConfig(n_gpu_layers=999, ctx_size=4096)
+
+    assert is_oom(cfg, model, hw) is True
+    assert is_plausible(cfg, model, hw) is False
 
 
-def test_max_offloadable_layers_full_when_small_kv():
+def test_max_offloadable_layers_full_when_weights_fit():
     model = ModelInfo(
         n_layers=40,
         n_heads=32,
