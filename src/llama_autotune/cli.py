@@ -570,13 +570,7 @@ def search(
 
     best_config = opt.run()
 
-    result = run_benchmark(
-        model,
-        best_config,
-        repetitions=opt._bench_reps,
-        n_prompt=opt._n_prompt,
-        n_gen=opt._n_gen,
-    )
+    result = opt.validate_full_context(best_config)
 
     table = Table(
         title=f"Best Config ({opt.objective.value})",

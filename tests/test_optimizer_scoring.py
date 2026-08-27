@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import optuna
 
 from llama_autotune.models import BenchmarkResult, OptimizeObjective, SearchConfig
-from llama_autotune.optimizer import Optimizer
+from llama_autotune.optimizer import Optimizer, full_context_workload
 from llama_autotune.web import OptimizeRequest
 from llama_autotune.search_space import ParamDef
 
@@ -626,6 +626,13 @@ def test_score_min_latency_real_config_beats_failure_sentinel():
     opt = _make_optimizer(OptimizeObjective.MIN_LATENCY)
     score = opt._score(_result(startup=0.5), SearchConfig())
     assert score > -1.0
+
+
+def test_full_context_workload_scales():
+    assert full_context_workload(None) == (512, 256)
+    assert full_context_workload(1024) == (1024, 256)
+    assert full_context_workload(24576) == (24576, 256)
+    assert full_context_workload(40960) == (32768, 256)  # capped at 32768
 
 
 def test_score_max_context_scales_with_ctx():

@@ -59,6 +59,7 @@ def get_search_space(
 
     space.update(_memory_space(model, objective))
     space.update(_throughput_space(model, objective))
+    space.update(_cache_space(model, objective))
 
     return space
 
@@ -166,6 +167,34 @@ def _throughput_space(
         categories=[64, 128, 256, 512, 1024],
     )
     return space
+
+
+def _cache_space(
+    model: ModelInfo, objective: OptimizeObjective
+) -> dict[str, ParamDef]:
+    """Build the KV-cache quantization portion of the search space.
+
+    Quantizing the KV cache (q8_0 / q4_0) shrinks its memory footprint,
+    which lets larger contexts fit. The default (f16) is covered by the
+    baseline configuration, so the search explores the quantized
+    alternatives.
+    """
+    return {
+        "cache_type_k": ParamDef(
+            "cache_type_k",
+            0,
+            0,
+            is_categorical=True,
+            categories=["q8_0", "q4_0"],
+        ),
+        "cache_type_v": ParamDef(
+            "cache_type_v",
+            0,
+            0,
+            is_categorical=True,
+            categories=["q8_0", "q4_0"],
+        ),
+    }
 
 
 def config_from_params(params: dict[str, Any], base: SearchConfig | None = None) -> SearchConfig:

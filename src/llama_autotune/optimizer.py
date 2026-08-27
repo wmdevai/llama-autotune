@@ -39,6 +39,19 @@ from . import candidates
 
 logger = logging.getLogger(__name__)
 
+
+def full_context_workload(ctx_size: int | None) -> tuple[int, int]:
+    """Return a (prompt, generation) workload that fills most of a context.
+
+    The regular benchmark uses a small workload (~512 prompt tokens), so a
+    config that wins at that scale might degrade once the KV cache is
+    actually filled. This workload sizes the prompt to the target context
+    (capped at 32768 tokens to bound runtime).
+    """
+    ctx = ctx_size or 0
+    n_prompt = max(512, min(ctx, 32768))
+    return n_prompt, 256
+
 class Optimizer:
     """Three-stage parameter optimizer for llama.cpp.
 
@@ -278,6 +291,8 @@ class Optimizer:
                 "ubatch_size",
                 "n_gpu_layers",
                 "ctx_size",
+                "cache_type_k",
+                "cache_type_v",
             )
             if name in space
         ]
@@ -842,6 +857,30 @@ class Optimizer:
             logger.warning(f"OOM detected — {key}")
 
         return result
+
+    def validate_full_context(self, config: SearchConfig) -> BenchmarkResult:
+        """Benchmark a config with a workload that fills its context.
+
+        The regular search benchmark uses a small workload, so a config that
+        wins at that scale might degrade (or OOM) once the KV cache is
+        actually filled. This runs a single benchmark sized to the target
+        context and reports the real full-context throughput and VRAM.
+        """
+        n_prompt, n_gen = full_context_workload(config.ctx_size)
+
+        logger.info(
+            f"[VALIDATE] full-context ctx={config.ctx_size} "
+            f"n_prompt={n_prompt} n_gen={n_gen}"
+        )
+
+        return run_benchmark(
+            self.model_path,
+            config,
+            repetitions=1,
+            timeout=900,
+            n_prompt=n_prompt,
+            n_gen=n_gen,
+        )
 
     def _score(self, result: BenchmarkResult, config: SearchConfig) -> float:
         """Compute a scalar score from a benchmark result based on the objective.

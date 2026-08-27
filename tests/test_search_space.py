@@ -75,6 +75,16 @@ def test_batch_ubatch_are_categorical():
     assert 1024 in ubatch.categories
 
 
+def test_cache_types_are_categorical():
+    space = get_search_space(_hw(), _model(), OptimizeObjective.BALANCED)
+
+    assert "cache_type_k" in space
+    assert "cache_type_v" in space
+    assert space["cache_type_k"].is_categorical
+    assert "q8_0" in space["cache_type_k"].categories
+    assert "q4_0" in space["cache_type_v"].categories
+
+
 def test_gpu_layers_capped_by_vram():
     hw = _hw()
     hw.backend = Backend.CUDA

@@ -103,6 +103,15 @@ def test_search_forwards_slow_option(
                 ctx_size=4096,
             )
 
+        def validate_full_context(self, config):
+            return BenchmarkResult(
+                success=True,
+                prompt_tps=10.0,
+                generation_tps=20.0,
+                startup_time=1.0,
+                memory_usage=1000.0,
+            )
+
     monkeypatch.setattr(
         "llama_autotune.cli.Optimizer",
         FakeOptimizer,

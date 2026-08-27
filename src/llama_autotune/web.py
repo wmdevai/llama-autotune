@@ -502,7 +502,7 @@ def _run_optimization(request: OptimizeRequest) -> dict:
     # Reuse the exact benchmark result already evaluated by the optimizer.
     # This avoids running the same configuration a second time and keeps
     # the Baseline and Best Result values consistent with the optimization.
-    best_result = optimizer._evaluate(best_config)
+    best_result = optimizer.validate_full_context(best_config)
 
     baseline_result = optimizer._baseline_result
 
