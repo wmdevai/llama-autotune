@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     setupNavigation();
     setupDashboard();
+    setupWizard();
     setupModels();
     setupInspector();
     setupBenchmark();
@@ -768,6 +769,344 @@ function escapeHtml(value) {
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
     return div.innerHTML;
+}
+
+
+/* =========================================================
+   SETUP GUIDATO
+   ========================================================= */
+
+let wizardModelPath = "";
+let wizardObjective = "balanced_context";
+let wizardBestConfig = null;
+
+
+function setupWizard() {
+    loadWizardModels();
+
+    $("wizard-model-confirm").addEventListener(
+        "click",
+        confirmWizardModel
+    );
+
+    $("wizard-calibrate-button").addEventListener(
+        "click",
+        runWizardCalibrate
+    );
+
+    $("wizard-priority-confirm").addEventListener(
+        "click",
+        confirmWizardPriority
+    );
+
+    $("wizard-optimize-button").addEventListener(
+        "click",
+        runWizardOptimize
+    );
+
+    $("wizard-apply-presets-button").addEventListener(
+        "click",
+        applyWizardPresets
+    );
+
+    $("wizard-copy-button").addEventListener(
+        "click",
+        copyWizardConfig
+    );
+}
+
+
+async function loadWizardModels() {
+    const select = $("wizard-model-select");
+
+    try {
+        const data = await apiFetch("/api/models");
+
+        select.innerHTML = "";
+
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = data.models.length
+            ? "Seleziona un modello..."
+            : "Nessun modello GGUF trovato";
+        select.appendChild(placeholder);
+
+        for (const model of data.models) {
+            const option = document.createElement("option");
+            option.value = model.path;
+            option.textContent = model.relative_path;
+            select.appendChild(option);
+        }
+
+    } catch (error) {
+        select.innerHTML =
+            '<option value="">Impossibile caricare i modelli</option>';
+    }
+}
+
+
+function confirmWizardModel() {
+    const path = $("wizard-model-select").value.trim();
+
+    if (!path) {
+        alert("Seleziona prima un modello.");
+        return;
+    }
+
+    wizardModelPath = path;
+
+    setHidden($("wizard-step-2"), false);
+    $("wizard-step-2").scrollIntoView({ behavior: "smooth" });
+}
+
+
+async function runWizardCalibrate() {
+    const button = $("wizard-calibrate-button");
+    const status = $("wizard-calibrate-status");
+    const errorBox = $("wizard-calibrate-error");
+
+    setHidden(status, true);
+    setHidden(errorBox, true);
+
+    button.disabled = true;
+    button.textContent = "Calibrazione in corso...";
+
+    status.textContent =
+        "Misuro la memoria video del modello... circa 30 secondi.";
+    setHidden(status, false);
+
+    try {
+        const data = await apiFetch(
+            "/api/calibrate",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({
+                    model_path: wizardModelPath,
+                }),
+            }
+        );
+
+        status.textContent =
+            `Calibrazione completata: il modello usa circa ` +
+            `${Number(data.measured_vram_mb).toFixed(0)} MB di VRAM.`;
+
+        button.disabled = false;
+        button.textContent = "Avvia calibrazione";
+
+        setHidden($("wizard-step-3"), false);
+        $("wizard-step-3").scrollIntoView({ behavior: "smooth" });
+
+    } catch (error) {
+        errorBox.textContent = getErrorMessage(error);
+        setHidden(errorBox, false);
+
+        button.disabled = false;
+        button.textContent = "Avvia calibrazione";
+    }
+}
+
+
+function confirmWizardPriority() {
+    const selected = document.querySelector(
+        'input[name="wizard-priority"]:checked'
+    );
+
+    wizardObjective = selected
+        ? selected.value
+        : "balanced_context";
+
+    setHidden($("wizard-step-4"), false);
+    $("wizard-step-4").scrollIntoView({ behavior: "smooth" });
+}
+
+
+async function runWizardOptimize() {
+    const button = $("wizard-optimize-button");
+    const statusBox = $("wizard-optimize-status");
+    const errorBox = $("wizard-optimize-error");
+    const logBox = $("wizard-optimize-log");
+
+    setHidden(statusBox, true);
+    setHidden(errorBox, true);
+
+    if (logBox) {
+        logBox.textContent = "";
+        setHidden(logBox, false);
+    }
+
+    button.disabled = true;
+    button.textContent = "Ottimizzazione in corso...";
+
+    statusBox.textContent =
+        "Provo automaticamente diverse configurazioni... " +
+        "questo richiede qualche minuto.";
+    setHidden(statusBox, false);
+
+    try {
+        const job = await apiFetch(
+            "/api/optimize",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({
+                    model_path: wizardModelPath,
+                    objective: wizardObjective,
+                    trials_b: 12,
+                    trials_c: 20,
+                }),
+            }
+        );
+
+        await streamWizardEvents(
+            job.job_id,
+            statusBox,
+            errorBox,
+            logBox
+        );
+
+    } catch (error) {
+        errorBox.textContent = getErrorMessage(error);
+        setHidden(errorBox, false);
+
+    } finally {
+        button.disabled = false;
+        button.textContent = "Avvia ottimizzazione";
+    }
+}
+
+
+function streamWizardEvents(jobId, statusBox, errorBox, logBox) {
+    return new Promise((resolve) => {
+        const source = new EventSource(
+            `/api/optimize/events/${jobId}`
+        );
+
+        source.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "log") {
+                if (logBox) {
+                    logBox.textContent += `${data.message}\n`;
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                if (statusBox) {
+                    statusBox.textContent = data.message;
+                }
+
+                return;
+            }
+
+            if (data.type === "done") {
+                source.close();
+
+                if (data.error) {
+                    if (errorBox) {
+                        errorBox.textContent = data.error;
+                        setHidden(errorBox, false);
+                    }
+                } else if (data.result) {
+                    renderWizardResult(data.result);
+                }
+
+                resolve();
+            }
+        };
+
+        source.onerror = () => {
+            source.close();
+            resolve();
+        };
+    });
+}
+
+
+function renderWizardResult(data) {
+    wizardBestConfig = data.best_config;
+
+    const ctx = data.best_config?.ctx_size ?? "-";
+    const genTps = data.final_result?.generation_tps;
+    const improvement = data.best_score != null
+        ? (Number(data.best_score) - 1) * 100
+        : null;
+
+    let summary = "";
+
+    if (improvement != null && improvement >= 0) {
+        summary =
+            `La configurazione migliore usa un contesto di ${ctx} token ` +
+            `a ${genTps != null ? Number(genTps).toFixed(1) : "?"} token al secondo, ` +
+            `con un miglioramento del ${improvement >= 0 ? "+" : ""}${improvement.toFixed(2)}% ` +
+            "rispetto alla configurazione di partenza.";
+    } else {
+        summary =
+            `Configurazione trovata: contesto di ${ctx} token ` +
+            `a ${genTps != null ? Number(genTps).toFixed(1) : "?"} token al secondo.`;
+    }
+
+    $("wizard-result-summary").textContent = summary;
+    $("wizard-best-config").textContent =
+        JSON.stringify(data.best_config, null, 2);
+
+    setHidden($("wizard-step-5"), false);
+    $("wizard-step-5").scrollIntoView({ behavior: "smooth" });
+}
+
+
+async function applyWizardPresets() {
+    const statusBox = $("wizard-result-status");
+
+    setHidden(statusBox, true);
+
+    try {
+        const data = await apiFetch(
+            "/api/presets/apply",
+            { method: "POST" }
+        );
+
+        statusBox.textContent =
+            "Presets applicati con successo. " +
+            (data.backup
+                ? `Backup creato: ${data.backup}`
+                : "");
+
+        setHidden(statusBox, false);
+
+    } catch (error) {
+        statusBox.textContent = getErrorMessage(error);
+        setHidden(statusBox, false);
+    }
+}
+
+
+function copyWizardConfig() {
+    if (!wizardBestConfig) {
+        return;
+    }
+
+    const text = JSON.stringify(wizardBestConfig, null, 2);
+
+    navigator.clipboard.writeText(text).then(
+        () => {
+            const statusBox = $("wizard-result-status");
+            statusBox.textContent = "Configurazione copiata negli appunti.";
+            setHidden(statusBox, false);
+        },
+        () => {
+            const statusBox = $("wizard-result-status");
+            statusBox.textContent = "Impossibile copiare automaticamente.";
+            setHidden(statusBox, false);
+        }
+    );
 }
 
 

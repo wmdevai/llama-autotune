@@ -872,6 +872,28 @@ class Optimizer:
         elif self.objective == OptimizeObjective.MAX_CONTEXT:
             return float(config.ctx_size or 0) + result.generation_tps / 1000.0
 
+        elif self.objective == OptimizeObjective.BALANCED_CONTEXT:
+            baseline = getattr(self, "_baseline_result", None)
+
+            if baseline is None:
+                return result.generation_tps
+
+            generation_ratio = (
+                result.generation_tps
+                / max(baseline.generation_tps, 1e-9)
+            )
+
+            baseline_ctx = self._initial_config.ctx_size or 1
+            ctx_ratio = (
+                (config.ctx_size or 0)
+                / max(baseline_ctx, 1)
+            )
+
+            return math.pow(generation_ratio, 0.60) * math.pow(
+                ctx_ratio,
+                0.40,
+            )
+
         elif self.objective == OptimizeObjective.BALANCED:
             baseline = getattr(self, "_baseline_result", None)
 

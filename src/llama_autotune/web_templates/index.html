@@ -12,7 +12,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=4"
+        href="/static/style.css?v=5"
     >
 
     <style>
@@ -71,6 +71,43 @@
         .calibrations-table {
             margin-top: 8px;
         }
+        .wizard-step {
+            margin-bottom: 20px;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            margin-right: 8px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .wizard-radio {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 12px 0 20px;
+        }
+        .wizard-radio label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .wizard-radio label strong {
+            color: var(--text);
+        }
+        .wizard-radio label span.muted {
+            margin-top: 0;
+        }
         .presets-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -121,6 +158,13 @@
                 data-tab="dashboard"
             >
                 Pannello
+            </button>
+
+            <button
+                class="nav-item"
+                data-tab="wizard"
+            >
+                Setup Guidato
             </button>
 
             <button
@@ -380,6 +424,266 @@
                         </div>
 
                     </div>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SETUP GUIDATO -->
+
+        <section
+            id="wizard"
+            class="tab"
+        >
+
+            <div class="page-header">
+
+                <div>
+                    <h2>Setup Guidato</h2>
+
+                    <p>
+                        Segui i passi in ordine per ottenere la migliore
+                        configurazione del tuo modello. Nessuna conoscenza
+                        tecnica richiesta.
+                    </p>
+                </div>
+
+            </div>
+
+
+            <!-- PASSO 1 -->
+
+            <div class="panel wizard-step" id="wizard-step-1">
+
+                <h3>
+                    <span class="step-number">1</span>
+                    Scegli il modello
+                </h3>
+
+                <p class="muted">
+                    Seleziona dall'elenco il modello che vuoi ottimizzare.
+                </p>
+
+                <div class="form-wide">
+
+                    <select id="wizard-model-select">
+                        <option value="">
+                            Caricamento modelli...
+                        </option>
+                    </select>
+
+                </div>
+
+                <button
+                    id="wizard-model-confirm"
+                    class="primary-button large-button"
+                >
+                    Conferma modello
+                </button>
+
+            </div>
+
+
+            <!-- PASSO 2 -->
+
+            <div class="panel wizard-step hidden" id="wizard-step-2">
+
+                <h3>
+                    <span class="step-number">2</span>
+                    Calibrazione
+                </h3>
+
+                <p class="muted">
+                    Misuriamo quanta memoria video usa davvero il tuo
+                    modello, così la ricerca userà stime realistiche.
+                    Richiede circa 30 secondi.
+                </p>
+
+                <button
+                    id="wizard-calibrate-button"
+                    class="primary-button large-button"
+                >
+                    Avvia calibrazione
+                </button>
+
+                <div
+                    id="wizard-calibrate-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+                <div
+                    id="wizard-calibrate-error"
+                    class="error hidden"
+                >
+                </div>
+
+            </div>
+
+
+            <!-- PASSO 3 -->
+
+            <div class="panel wizard-step hidden" id="wizard-step-3">
+
+                <h3>
+                    <span class="step-number">3</span>
+                    Scegli la priorità
+                </h3>
+
+                <p class="muted">
+                    Cosa ti interessa di più per questo modello?
+                </p>
+
+                <div class="wizard-radio">
+
+                    <label>
+                        <input
+                            type="radio"
+                            name="wizard-priority"
+                            value="balanced_context"
+                            checked
+                        >
+
+                        <strong>Velocità + contesto alto</strong>
+                        <span class="muted">
+                            Un buon equilibrio tra velocità e il contesto
+                            più ampio possibile (consigliato).
+                        </span>
+                    </label>
+
+
+                    <label>
+                        <input
+                            type="radio"
+                            name="wizard-priority"
+                            value="max_context"
+                        >
+
+                        <strong>Contesto massimo</strong>
+                        <span class="muted">
+                            Il contesto più grande possibile, accettando
+                            un po' di velocità in meno.
+                        </span>
+                    </label>
+
+
+                    <label>
+                        <input
+                            type="radio"
+                            name="wizard-priority"
+                            value="balanced"
+                        >
+
+                        <strong>Massima velocità</strong>
+                        <span class="muted">
+                            La generazione più rapida, anche con un
+                            contesto più piccolo.
+                        </span>
+                    </label>
+
+                </div>
+
+                <button
+                    id="wizard-priority-confirm"
+                    class="primary-button large-button"
+                >
+                    Conferma priorità
+                </button>
+
+            </div>
+
+
+            <!-- PASSO 4 -->
+
+            <div class="panel wizard-step hidden" id="wizard-step-4">
+
+                <h3>
+                    <span class="step-number">4</span>
+                    Ottimizzazione
+                </h3>
+
+                <p class="muted">
+                    Proviamo automaticamente diverse configurazioni per
+                    trovare la migliore per il tuo modello. Richiede
+                    qualche minuto.
+                </p>
+
+                <button
+                    id="wizard-optimize-button"
+                    class="primary-button large-button"
+                >
+                    Avvia ottimizzazione
+                </button>
+
+                <div
+                    id="wizard-optimize-status"
+                    class="status-message hidden"
+                >
+                </div>
+
+                <pre
+                    id="wizard-optimize-log"
+                    class="log-output hidden"
+                >
+                </pre>
+
+                <div
+                    id="wizard-optimize-error"
+                    class="error hidden"
+                >
+                </div>
+
+            </div>
+
+
+            <!-- PASSO 5 -->
+
+            <div class="panel wizard-step hidden" id="wizard-step-5">
+
+                <h3>
+                    <span class="step-number">5</span>
+                    Risultato
+                </h3>
+
+                <p
+                    id="wizard-result-summary"
+                    class="status-message"
+                    style="display: block;"
+                >
+                </p>
+
+                <div
+                    class="panel"
+                    style="margin-top: 16px;"
+                >
+
+                    <h3>Configurazione migliore</h3>
+
+                    <pre id="wizard-best-config"></pre>
+
+                </div>
+
+                <button
+                    id="wizard-apply-presets-button"
+                    class="primary-button large-button"
+                >
+                    Applica ai Presets
+                </button>
+
+                <button
+                    id="wizard-copy-button"
+                    class="secondary-button"
+                    style="margin-left: 12px;"
+                >
+                    Copia configurazione
+                </button>
+
+                <div
+                    id="wizard-result-status"
+                    class="status-message hidden"
+                >
                 </div>
 
             </div>
@@ -1006,8 +1310,16 @@
                         </label>
 
                         <select id="optimize-objective">
+                            <option value="balanced_context">
+                                Velocità + Contesto (consigliato)
+                            </option>
+
                             <option value="balanced">
-                                Bilanciato
+                                Velocità (bilanciato)
+                            </option>
+
+                            <option value="max_context">
+                                Contesto massimo
                             </option>
 
                             <option value="max_generation_tps">
@@ -1393,6 +1705,15 @@
 
                 <h3>Flusso consigliato, passo per passo</h3>
 
+                <div class="tip">
+                    <strong>Il modo più semplice:</strong> usa il tab
+                    <strong>Setup Guidato</strong>: ti accompagna in 5 passi
+                    (scegli il modello → calibrazione → priorità →
+                    ottimizzazione → risultato) senza bisogno di sapere cosa
+                    succede sotto. I passi qui sotto sono la versione manuale
+                    dello stesso percorso.
+                </div>
+
                 <h4>Prima volta con un nuovo modello</h4>
 
                 <ol>
@@ -1503,8 +1824,16 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>Bilanciato</strong></td>
-                            <td>Uso generale. Bilancia velocità di generazione (60%) e di prompt (40%). Consigliato.</td>
+                            <td><strong>Velocità + Contesto</strong></td>
+                            <td>La scelta consigliata: cerca un buon equilibrio tra velocità e il contesto più ampio possibile.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Contesto massimo</strong></td>
+                            <td>Quando vuoi il contesto più grande possibile (documenti molto lunghi), accettando un po' di velocità in meno.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Velocità (bilanciato)</strong></td>
+                            <td>Uso generale. Bilancia velocità di generazione (60%) e di prompt (40%).</td>
                         </tr>
                         <tr>
                             <td><strong>Massima velocità di generazione</strong></td>
@@ -1517,11 +1846,33 @@
                     </tbody>
                 </table>
 
+                <h3>VRAM e offload: cosa devi sapere</h3>
+
+                <p>
+                    Su GPU moderne (come le RTX serie 50) la memoria video è
+                    gestita con la <strong>memoria virtuale (VMM)</strong>:
+                    quando la <strong>KV-cache</strong> non entra nella VRAM
+                    fisica, la GPU la sposta automaticamente nella RAM di
+                    sistema. Per questo conviene quasi sempre caricare
+                    <strong>tutti i layer sulla GPU</strong> (Livelli GPU al
+                    massimo), anche se la stima totale supera la VRAM: è molto
+                    più veloce dell'offload parziale.
+                </p>
+
+                <div class="tip">
+                    <strong>Regola pratica:</strong> ciò che deve davvero
+                    entrare nella VRAM sono i <em>pesi</em> del modello. La
+                    KV-cache può andare in paging. Il tool tiene conto di
+                    questo automaticamente: riduce i layer sulla GPU solo
+                    quando i pesi stessi non ci stanno (es. modelli molto
+                    grandi come il 35B MoE).
+                </div>
+
                 <h3>Consigli pratici</h3>
 
                 <ul>
                     <li>Se la GPU ha abbastanza VRAM, lascia <strong>Livelli GPU</strong> al massimo (999) e attiva <strong>Flash Attention</strong>.</li>
-                    <li>Per modelli che non entrano in VRAM, riduci <strong>Livelli GPU</strong> e/o <strong>Context Size</strong>.</li>
+                    <li>Per modelli i cui pesi non entrano in VRAM (es. 35B), il tool riduce automaticamente i layer sulla GPU.</li>
                     <li>Un benchmark da ~20-30 secondi è normale; l'ottimizzazione completa richiede diversi minuti (esegue decine di benchmark).</li>
                     <li>La calibrazione è rapida e va fatta una volta per quantizzazione.</li>
                 </ul>
@@ -1580,7 +1931,7 @@
 </div>
 
 
-<script src="/static/app.js?v=4"></script>
+<script src="/static/app.js?v=5"></script>
 
 </body>
 </html>

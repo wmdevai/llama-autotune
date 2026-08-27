@@ -653,6 +653,35 @@ def test_score_max_efficiency():
     assert opt._score(_result(gen=10.0, memory=2000.0), SearchConfig()) == 10.0 / 2000.0
 
 
+def test_score_balanced_context_rewards_context():
+    """With equal speed, a larger context must outscore a smaller one."""
+    opt = _make_optimizer(OptimizeObjective.BALANCED_CONTEXT)
+    opt._baseline_result = _result(gen=10.0)
+    opt._initial_config = SearchConfig(ctx_size=24576)
+
+    small_ctx = opt._score(_result(gen=10.0), SearchConfig(ctx_size=24576))
+    large_ctx = opt._score(_result(gen=10.0), SearchConfig(ctx_size=32768))
+
+    assert large_ctx > small_ctx
+
+
+def test_score_balanced_context_rewards_speed():
+    """With equal context, a faster config must outscore a slower one."""
+    opt = _make_optimizer(OptimizeObjective.BALANCED_CONTEXT)
+    opt._baseline_result = _result(gen=10.0)
+    opt._initial_config = SearchConfig(ctx_size=24576)
+
+    slow = opt._score(_result(gen=8.0), SearchConfig(ctx_size=24576))
+    fast = opt._score(_result(gen=12.0), SearchConfig(ctx_size=24576))
+
+    assert fast > slow
+
+
+def test_score_balanced_context_defaults_to_generation():
+    opt = _make_optimizer(OptimizeObjective.BALANCED_CONTEXT)
+    assert opt._score(_result(gen=7.0), SearchConfig()) == 7.0
+
+
 def test_score_balanced_defaults_to_generation():
     opt = _make_optimizer(OptimizeObjective.BALANCED)
     assert opt._score(_result(gen=7.0), SearchConfig()) == 7.0

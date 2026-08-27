@@ -44,6 +44,7 @@ class OptimizeObjective(str, Enum):
     MAX_PROMPT_TPS = "max_prompt_tps"
     MIN_LATENCY = "min_latency"
     MAX_CONTEXT = "max_context"
+    BALANCED_CONTEXT = "balanced_context"
     MAX_EFFICIENCY = "max_efficiency"
     BALANCED = "balanced"
 

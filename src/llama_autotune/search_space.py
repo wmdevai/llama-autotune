@@ -126,7 +126,10 @@ def _memory_space(
     """
     space = {}
     max_ctx = model.training_context if model.training_context > 0 else 8192
-    if objective in (OptimizeObjective.MAX_CONTEXT,):
+    if objective in (
+        OptimizeObjective.MAX_CONTEXT,
+        OptimizeObjective.BALANCED_CONTEXT,
+    ):
         space["ctx_size"] = ParamDef("ctx_size", 4096, min(max_ctx, 131072), step=4096)
     else:
         space["ctx_size"] = ParamDef("ctx_size", 1024, min(max_ctx, 32768), step=1024)
