@@ -43,6 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `benchmarks` and `trial_cache` tables (with a best-effort migration for
   existing databases). Real-hardware VRAM realism tests guard that the
   benchmark reports VRAM and that the heuristic initial config is plausible.
+- Per-quantization VRAM calibration: a `calibration` module stores measured
+  overhead factors in `~/.llama-autotune/calibrations.json`, the
+  `POST /api/calibrate` and `GET /api/calibrations` endpoints run a controlled
+  measurement from the Web UI, and the VRAM estimator prefers stored values
+  over the heuristic defaults.
+- The Web UI is fully translated to Italian and gains a **Calibration** tab
+  (measure + inspect saved overhead factors) and a **Guida** tab with a
+  step-by-step wiki-style guide covering the workflow, every parameter, the
+  optimization objectives, practical tips and troubleshooting.
 - Unit tests for the byte-level GGUF readers and synthetic-GGUF
   `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
   `candidates.grid_values` / `sample_param`.
