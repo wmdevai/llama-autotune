@@ -16,13 +16,14 @@ L'ottimizzazione è organizzata in tre fasi:
 - **Ispezione GGUF**: lettura di architettura, parametri, quantizzazione, layer, context length e caratteristiche MoE;
 - **Benchmark con llama.cpp**: utilizzo di `llama-bench` per misurare le prestazioni delle configurazioni;
 - **Ottimizzazione in tre fasi**: baseline euristica, Stage B e raffinamento Stage C;
-- **Obiettivi multipli**: velocità di generazione, velocità del prompt, latenza, contesto, efficienza e profilo bilanciato;
-- **Gestione dei vincoli**: stima della VRAM e controlli di plausibilità prima dei benchmark;
+- **Obiettivi multipli**: velocità di generazione, velocità del prompt, latenza, contesto, velocità + contesto, efficienza e profilo bilanciato;
+- **Gestione dei vincoli**: stima della VRAM (pesi + KV-cache) e controlli di plausibilità prima dei benchmark;
+- **Calibrazione VRAM**: misurazione reale dell'overhead per quantizzazione, con feedback automatico nella ricerca;
 - **Full GPU offload**: valori di `n_gpu_layers` pari o superiori al numero di layer del modello sono trattati come offload completo;
-- **Benchmark adattati al contesto**: il carico del prompt può essere adattato al valore di `ctx_size`;
+- **Benchmark adattati al contesto**: il carico del prompt può essere adattato al valore di `ctx_size`, con validazione a contesto pieno;
 - **Database SQLite**: persistenza dei benchmark e dei profili di avvio;
 - **Profili di avvio**: esportazione e importazione di configurazioni JSON;
-- **Web UI integrata**: interfaccia web avviabile dalla CLI.
+- **Web UI integrata**: interfaccia web in italiano con Setup Guidato, calibrazione, presets, archivio e guida.
 
 ## Installazione
 
@@ -191,7 +192,15 @@ Esempio:
   --objective max_generation_tps
 ```
 
-Gli obiettivi disponibili dipendono dalle opzioni definite dal progetto e possono essere visualizzati con:
+Gli obiettivi principali:
+
+- `balanced` — velocità di generazione e prompt bilanciate;
+- `balanced_context` — velocità di generazione e contesto più ampio possibile;
+- `max_context` — contesto massimo;
+- `max_generation_tps` / `max_prompt_tps` — massima velocità;
+- `min_latency`, `max_efficiency`.
+
+L'elenco completo è visualizzabile con:
 
 ```bash
 .venv/bin/llama-autotune search --help
@@ -227,10 +236,13 @@ Nella configurazione attuale il budget predefinito è di **12 valutazioni**.
 
 Tra i parametri esplorati rientrano:
 
+- `threads`;
 - `batch_size`;
 - `ubatch_size`;
 - `n_gpu_layers`;
-- `ctx_size`.
+- `ctx_size`;
+- `cache_type_k`;
+- `cache_type_v` (quantizzazione della KV-cache, es. `q8_0`).
 
 Le configurazioni vengono sottoposte ai controlli di plausibilità e alla stima della VRAM prima dell'esecuzione del benchmark.
 
@@ -251,7 +263,9 @@ Durante questa fase:
 
 La configurazione iniziale utilizza un valore di `ctx_size` fino a **24576**, compatibilmente con il context length dichiarato dal modello.
 
-Il valore può essere modificato durante la ricerca e viene considerato anche nella stima della memoria necessaria.
+Il valore può essere modificato durante la ricerca e viene considerato anche nella stima della memoria necessaria. Con gli obiettivi orientati al contesto
+(`balanced_context`, `max_context`) il range di ricerca viene esteso fino al
+context length del modello.
 
 ## Batch size e ubatch size
 
@@ -280,6 +294,12 @@ La stima considera:
 - overhead del backend;
 - frazione del modello caricata sulla GPU;
 - memoria necessaria per la KV cache.
+
+Sia i **pesi del modello** sia la **KV-cache** devono entrare nella VRAM
+fisica: `llama-server` pre-alloca l'intera KV-cache al caricamento, quindi
+una configurazione che la supera non si carica. Per contesti più ampi si può
+quantizzare la KV-cache (`cache-type-k/v = q8_0`), dimezzandone la memoria: la
+ricerca la prova automaticamente.
 
 Le configurazioni che superano i limiti di memoria o risultano non plausibili possono essere escluse prima del benchmark.
 
@@ -334,6 +354,19 @@ Per impostazione predefinita l'interfaccia viene avviata su:
 ```text
 http://127.0.0.1:8766
 ```
+
+L'interfaccia è in italiano e offre questi tab:
+
+- **Pannello** — hardware rilevato e stato di llama.cpp;
+- **Setup Guidato** — flusso in 5 passi (modello → calibrazione → priorità →
+  ottimizzazione → risultato) per chi vuole essere accompagnato;
+- **Ispezione Modello** — metadati GGUF;
+- **Benchmark** — singolo benchmark con parametri scelti;
+- **Calibrazione** — misura della VRAM reale e fattore di overhead per quant;
+- **Ottimizzazione** — ricerca automatica della configurazione;
+- **Presets** — visualizza/applica il `presets.ini` attuale e consigliato;
+- **Archivio** — file generati e slot KV-cache, con eliminazione;
+- **Guida** — guida passo-passo con spiegazione dei parametri.
 
 È possibile modificare host e porta:
 
@@ -397,7 +430,7 @@ cd ~/.local/src/llama-autotune
 Lo stato verificato più recente del progetto è:
 
 ```text
-157 passed, 4 skipped
+299 passed, 4 skipped
 ```
 
 Per misurare la copertura dei test:
@@ -485,12 +518,28 @@ ricerca, UX e testing).
       (`hardware` 57% → 91%), i comandi CLI (`cli` 48% → 84%), il benchmark
       (`benchmark` 54% → 94%) e gli endpoint web (`web` 59% → 84%); totale
       61% → 82%.
-- [x] Stima VRAM troppo conservativa per i K-quants: ricalibrata a 1.05 da
-      misure reali `nvidia-smi` su Q3_K / Q4_K_S / Q5_K_M (caricano a
-      0.96-0.99× il file; prima cadevano sul default 1.15 e rigettavano la
-      config full-offload + ctx grande come "OOM", bloccando la ricerca).
-      Aggiunta misurazione VRAM GPU reale in `BenchmarkResult.vram_usage`,
-      persistita nel DB/trial-cache, + test di realismo gated su GPU/modello.
+- [x] Stima VRAM: i K-quants sono stati ricalibrati a 1.05 da misure reali
+      `nvidia-smi` su Q3_K / Q4_K_S / Q5_K_M (caricano a 0.96-0.99× il file;
+      prima cadevano sul default 1.15). Aggiunta misurazione VRAM GPU reale in
+      `BenchmarkResult.vram_usage` (persistita nel DB) e test di realismo gated
+      su GPU/modello.
+- [x] Criterio di plausibilità VRAM corretto: devono entrare in VRAM sia i
+      pesi sia la KV-cache (llama-server la pre-alloca al caricamento). La
+      ricerca ora trova da sola la quantizzazione della KV-cache (`q8_0`/`q4_0`)
+      che permette il contesto più ampio caricabile.
+- [x] Validazione a contesto pieno: a fine ricerca viene eseguito un benchmark
+      con carico proporzionale al contesto trovato, non solo il piccolo carico
+      della ricerca.
+- [x] Calibrazione VRAM per quantizzazione: modulo `calibration`, endpoint
+      `/api/calibrate` e `/api/calibrations`, e feedback automatico in
+      `_overhead_factor` (il valore misurato prevale sui default).
+- [x] Web UI in italiano con nuovi tab: **Setup Guidato** (flusso guidato in 5
+      passi), **Calibrazione**, **Presets** (visualizza/applica con backup) e
+      **Archivio** (file generati e slot KV-cache); dashboard arricchita
+      (VRAM live, temperatura/uso GPU, spazio disco).
+- [x] Obiettivo `balanced_context` (velocità + contesto) e guida integrata
+      nella Web UI (spiegazione dei parametri, VMM/offload, risoluzione
+      problemi).
 
 ## Note
 
