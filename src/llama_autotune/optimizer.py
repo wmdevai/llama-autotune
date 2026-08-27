@@ -122,7 +122,7 @@ class Optimizer:
         ``_speed_tier``, ``_n_prompt``, ``_n_gen``, and ``_bench_reps``
         so that subsequent evaluations are scaled to the hardware.
         """
-        cfg = SearchConfig(threads=self.hw.physical_cores)
+        cfg = self._initial_config
         result = run_benchmark(self.model_path, cfg,
                                repetitions=1, timeout=30,
                                n_prompt=16, n_gen=8, no_warmup=True)
