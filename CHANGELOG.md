@@ -25,16 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The VRAM estimate was too conservative for K-quants: the GQA-aware KV-cache
   estimate made full offload + large context on a 16 GB GPU estimate over the
   plausibility threshold, so the search could never explore the known-good
-  baseline neighbourhood. `Q5` overhead is now calibrated to 1.05 from a real
-  `nvidia-smi` measurement instead of the 1.15 default.
-
-### Added
-
-- Real GPU VRAM measurement during benchmarks: `run_benchmark` samples
-  `nvidia-smi` / `rocm-smi` alongside the existing CPU RSS tracking and
-  exposes the peak in `BenchmarkResult.vram_usage`. Real-hardware VRAM
-  realism tests guard that the benchmark reports VRAM and that the heuristic
-  initial config is plausible.
+  baseline neighbourhood. K-quant overhead is now calibrated to 1.05 from
+  real `nvidia-smi` measurements (Q3_K / Q4_K_S / Q5_K_M load at 0.96-0.99×
+  file size) instead of the 1.15 default.
 
 ### Changed
 
@@ -44,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Real GPU VRAM measurement during benchmarks: `run_benchmark` samples
+  `nvidia-smi` / `rocm-smi` alongside the existing CPU RSS tracking and
+  exposes the peak in `BenchmarkResult.vram_usage`, which is persisted to the
+  `benchmarks` and `trial_cache` tables (with a best-effort migration for
+  existing databases). Real-hardware VRAM realism tests guard that the
+  benchmark reports VRAM and that the heuristic initial config is plausible.
 - Unit tests for the byte-level GGUF readers and synthetic-GGUF
   `inspect_model` coverage (`model_inspector` 38% → 96%), plus tests for
   `candidates.grid_values` / `sample_param`.
