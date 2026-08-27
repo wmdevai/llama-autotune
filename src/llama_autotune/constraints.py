@@ -162,10 +162,10 @@ def _kv_cache_bytes_per_element(cache_type: str | None) -> float:
 def is_oom(config: SearchConfig, model: ModelInfo, hw: HardwareInfo) -> bool:
     """Check whether a configuration would exceed physical VRAM.
 
-    Only the model weights must fit in physical VRAM: the KV cache and
-    runtime buffers can oversubscribe (modern GPUs page them to system RAM
-    via virtual memory), and a real out-of-memory is caught at benchmark
-    time by :func:`detect_oom_in_output`.
+    Both the model weights and the KV cache must fit in physical VRAM:
+    llama-server pre-allocates the full KV-cache buffer at load time, so a
+    config whose weights + KV exceed the GPU fails to load even when the
+    benchmark (which uses a small workload) succeeds.
 
     Args:
         config: The configuration to evaluate.
@@ -173,12 +173,11 @@ def is_oom(config: SearchConfig, model: ModelInfo, hw: HardwareInfo) -> bool:
         hw: Hardware information (VRAM per GPU, RAM).
 
     Returns:
-        True if the model weights exceed the physical VRAM.
+        True if the estimated weights + KV cache exceed the physical VRAM.
     """
-    gpu_fraction = _gpu_fraction(config, model)
-    weights_gb = _estimate_model_vram(config, model, gpu_fraction)
-    physical_vram = sum(hw.vram_per_gpu) if hw.gpu_count > 0 else 0.0
-    return weights_gb > physical_vram
+    estimated = estimate_vram(config, model, hw)
+    available = _available_vram(hw)
+    return estimated > available
 
 
 def _available_vram(hw: HardwareInfo) -> float:
@@ -196,17 +195,19 @@ def _available_vram(hw: HardwareInfo) -> float:
 def estimate_max_offloadable_layers(
     model: ModelInfo,
     hw: HardwareInfo,
+    ctx_size: int | None = None,
 ) -> int:
-    """Estimate the maximum number of layers whose weights fit in VRAM.
+    """Estimate the maximum number of layers that fit in available VRAM.
 
-    Only the model weights are considered (the KV cache can oversubscribe
-    via GPU virtual memory). Used to bound the ``n_gpu_layers`` search range
-    so the search does not waste trials on configurations whose weights
-    cannot fit on the GPU.
+    Accounts for both the model weights and the KV cache at the given
+    context size (defaults to the heuristic baseline context). Used to bound
+    the ``n_gpu_layers`` search range so the search does not waste trials on
+    configurations that cannot load on the GPU.
 
     Args:
         model: Model metadata (layer count, file size, quantization).
         hw: Hardware information (per-GPU VRAM).
+        ctx_size: Context size used for the KV-cache estimate.
 
     Returns:
         An upper bound on ``n_gpu_layers``: at least 1 and at most the
@@ -217,11 +218,22 @@ def estimate_max_offloadable_layers(
         return n_layers
 
     available = _available_vram(hw)
-    per_layer = model.file_size_gb * _overhead_factor(model) / n_layers
-    if per_layer <= 0:
+
+    if ctx_size is None:
+        ctx_size = min(model.training_context or 24576, 24576)
+
+    weights_gb = model.file_size_gb * _overhead_factor(model)
+    kv_gb = _estimate_kv_cache(
+        SearchConfig(ctx_size=ctx_size),
+        model,
+        1.0,
+    )
+
+    total_gb = weights_gb + kv_gb
+    if total_gb <= 0:
         return n_layers
 
-    by_vram = int(available / per_layer)
+    by_vram = int((available * n_layers) / total_gb)
     return max(1, min(n_layers, by_vram))
 
 

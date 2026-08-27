@@ -68,9 +68,9 @@ def test_config_no_training_ctx():
     assert cfg.ctx_size == 24576
 
 
-def test_generate_gpu_config_full_offload_even_with_large_kv():
-    """A model whose weights fit must keep full offload even when the KV
-    cache oversubscribes VRAM (the GPU pages it via VMM)."""
+def test_generate_gpu_config_partial_offload_when_kv_does_not_fit():
+    """A model whose weights + KV exceed VRAM must get a partial-offload
+    baseline (the server pre-allocates the KV cache at load)."""
     model = ModelInfo(
         architecture="qwen3",
         n_layers=65,
@@ -86,7 +86,7 @@ def test_generate_gpu_config_full_offload_even_with_large_kv():
 
     cfg = generate_initial_config(hw, model)
 
-    assert cfg.n_gpu_layers == 999
+    assert cfg.n_gpu_layers < model.n_layers or cfg.ctx_size < 24576
     assert is_plausible(cfg, model, hw)
 
 

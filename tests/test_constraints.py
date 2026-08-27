@@ -150,19 +150,41 @@ def test_kv_cache_bytes_per_element_defaults_to_f16():
     assert _kv_cache_bytes_per_element(None) == 2.0
 
 
-def test_is_oom_allows_kv_oversubscription():
-    """Weights that fit in VRAM must not be rejected even when the KV cache
-    pushes the full estimate over physical VRAM (VMM oversubscription)."""
+def test_is_oom_rejects_when_kv_does_not_fit():
+    """A config whose weights + KV exceed VRAM must be rejected: the server
+    pre-allocates the full KV cache at load time."""
     model = ModelInfo(
-        n_layers=65,
-        n_heads=24,
-        n_kv_heads=4,
+        n_layers=40,
+        n_heads=40,
+        n_kv_heads=8,
         embedding_length=5120,
-        file_size_gb=14.3,
-        quantization="Q4_K_S",
+        file_size_gb=9.79,
+        quantization="Q5_K_M",
     )
     hw = HardwareInfo(gpu_count=1, vram_per_gpu=[15.9])
-    cfg = SearchConfig(n_gpu_layers=999, ctx_size=24576)
+    cfg = SearchConfig(n_gpu_layers=999, ctx_size=40960)
+
+    assert is_oom(cfg, model, hw) is True
+    assert is_plausible(cfg, model, hw) is False
+
+
+def test_is_oom_allows_quantized_kv():
+    """Quantizing the KV cache (q8_0) must let the same context fit."""
+    model = ModelInfo(
+        n_layers=40,
+        n_heads=40,
+        n_kv_heads=8,
+        embedding_length=5120,
+        file_size_gb=9.79,
+        quantization="Q5_K_M",
+    )
+    hw = HardwareInfo(gpu_count=1, vram_per_gpu=[15.9])
+    cfg = SearchConfig(
+        n_gpu_layers=999,
+        ctx_size=40960,
+        cache_type_k="q8_0",
+        cache_type_v="q8_0",
+    )
 
     assert is_oom(cfg, model, hw) is False
     assert is_plausible(cfg, model, hw) is True

@@ -1849,23 +1849,22 @@
                 <h3>VRAM e offload: cosa devi sapere</h3>
 
                 <p>
-                    Su GPU moderne (come le RTX serie 50) la memoria video è
-                    gestita con la <strong>memoria virtuale (VMM)</strong>:
-                    quando la <strong>KV-cache</strong> non entra nella VRAM
-                    fisica, la GPU la sposta automaticamente nella RAM di
-                    sistema. Per questo conviene quasi sempre caricare
-                    <strong>tutti i layer sulla GPU</strong> (Livelli GPU al
-                    massimo), anche se la stima totale supera la VRAM: è molto
-                    più veloce dell'offload parziale.
+                    Quando avvii il modello con llama-server, questo
+                    <strong>pre-alloca l'intera KV-cache</strong> in base al
+                    contesto scelto. Quindi nella VRAM devono entrare
+                    <strong>sia i pesi del modello sia la KV-cache</strong>:
+                    se la somma supera la memoria video, il modello
+                    <strong>non si carica</strong> (anche se un benchmark con
+                    poche parole sembra riuscire).
                 </p>
 
                 <div class="tip">
-                    <strong>Regola pratica:</strong> ciò che deve davvero
-                    entrare nella VRAM sono i <em>pesi</em> del modello. La
-                    KV-cache può andare in paging. Il tool tiene conto di
-                    questo automaticamente: riduce i layer sulla GPU solo
-                    quando i pesi stessi non ci stanno (es. modelli molto
-                    grandi come il 35B MoE).
+                    <strong>Regola pratica:</strong> per avere un contesto
+                    più alto, quantizza la KV-cache con
+                    <code>cache-type = q8_0</code> (dimezza la memoria con
+                    una perdita di qualità trascurabile). Il tool la prova
+                    automaticamente durante la ricerca e sceglie la
+                    configurazione con pesi + KV che entrano davvero in VRAM.
                 </div>
 
                 <h3>Consigli pratici</h3>
