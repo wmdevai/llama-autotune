@@ -531,29 +531,21 @@ def test_stage_c_trials_keep_frozen_base_after_new_best(
     opt._score = score
 
     class FakeTrial:
-        def __init__(self, number, values):
+        def __init__(self, number, index):
             self.number = number
-            self._values = values
+            self._index = index
 
-        def suggest_categorical(self, name, choices):
-            value = self._values[name]
-            assert value in choices
-            return value
+        def suggest_int(self, name, low, high, step=None):
+            assert name == "candidate_index"
+            assert low <= self._index <= high
+            return self._index
 
     class FakeStudy:
         def __init__(self):
             self.trials = []
             self._next = 0
-            self._choices = [
-                {
-                    "threads": 6,
-                    "ctx_size": 4096,
-                },
-                {
-                    "threads": 4,
-                    "ctx_size": 8192,
-                },
-            ]
+            # Cartesian order: (4,4096), (4,8192), (6,4096), (6,8192)
+            self._indices = [2, 1]  # (6,4096) then (4,8192)
 
         def optimize(
             self,
@@ -562,10 +554,10 @@ def test_stage_c_trials_keep_frozen_base_after_new_best(
             show_progress_bar,
         ):
             for _ in range(n_trials):
-                values = self._choices[self._next]
+                index = self._indices[self._next]
                 trial = FakeTrial(
                     self._next,
-                    values,
+                    index,
                 )
                 self._next += 1
 

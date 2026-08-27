@@ -590,16 +590,22 @@ class Optimizer:
         seen_keys: set[str] = set()
         valid_evals = 0
 
+        # TPE samples an index into the enumerated *plausible* candidates.
+        # Sampling the raw Cartesian product wasted trial slots on
+        # implausible combinations (pruned as "unavailable"), so the
+        # surrogate only ever saw the handful of plausible completions.
+        ordered_candidates = list(candidate_params.values())
+
         def objective_fn(trial: optuna.Trial) -> float:
             nonlocal valid_evals
 
-            params: dict[str, Any] = {}
+            index = trial.suggest_int(
+                "candidate_index",
+                0,
+                len(ordered_candidates) - 1,
+            )
 
-            for pname, values in local_space.items():
-                params[pname] = trial.suggest_categorical(
-                    pname,
-                    values,
-                )
+            params = ordered_candidates[index]
 
             cfg = config_from_params(
                 params,
@@ -611,14 +617,6 @@ class Optimizer:
             )
 
             key = self._config_key(cfg)
-
-            if key not in candidate_params:
-                logger.info(
-                    f"[C] PRUNED trial={trial.number} "
-                    f"reason=unavailable_candidate "
-                    f"valid_evals={valid_evals}/{target_evals}"
-                )
-                raise optuna.TrialPruned()
 
             if key in seen_keys:
                 logger.info(
@@ -692,31 +690,33 @@ class Optimizer:
             f"available_candidates={len(available_keys)}"
         )
 
-        study = optuna.create_study(
-            direction="maximize",
-            sampler=optuna.samplers.TPESampler(
-                seed=42,
-                n_startup_trials=n_startup_trials,
-            ),
-        )
-
-        # Let TPE drive the search instead of enqueuing a deterministic
-        # candidate list (which bypassed the surrogate model entirely).
-        # ``objective_fn`` prunes duplicates, implausible candidates and
-        # failed benchmarks, so the loop simply continues until the
-        # valid-evaluation budget is spent or the finite candidate space is
-        # exhausted. This single path also serves the FakeStudy used by the
-        # unit tests (it only exposes ``optimize``).
-        patience = max(3, target_evals // 4)
-        no_improvement_streak = 0
-
+        # Suppress Optuna's own per-trial logging (its "Best is trial N"
+        # lines refer to the local study only, which is confusing next to
+        # the global best). Restored once the search finishes.
         original_verbosity = optuna.logging.get_verbosity()
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
         try:
+            study = optuna.create_study(
+                direction="maximize",
+                sampler=optuna.samplers.TPESampler(
+                    seed=42,
+                    n_startup_trials=n_startup_trials,
+                ),
+            )
+
+            # TPE drives the search instead of a deterministic enqueue.
+            # ``objective_fn`` prunes duplicates and failed benchmarks, so
+            # the loop continues until the valid-evaluation budget is spent
+            # or the finite candidate space is exhausted. This single path
+            # also serves the FakeStudy used by the unit tests (it only
+            # exposes ``optimize``).
+            patience = max(3, target_evals // 4)
+            no_improvement_streak = 0
+
             while (
                 valid_evals < target_evals
-                and len(seen_keys) < len(candidate_params)
+                and len(seen_keys) < len(ordered_candidates)
             ):
                 best_before = self._best_score
                 trials_before = len(study.trials)
@@ -787,10 +787,15 @@ class Optimizer:
         )
 
         if valid_evals < target_evals:
+            if len(seen_keys) >= len(ordered_candidates):
+                reason = "after exhausting benchmarkable candidates"
+            else:
+                reason = "after early stop"
+
             logger.warning(
                 f"[C] STOPPED before target: "
                 f"{valid_evals}/{target_evals} valid evaluations "
-                f"after exhausting benchmarkable candidates"
+                f"{reason}"
             )
 
     def _evaluate(self, config: SearchConfig) -> BenchmarkResult:
