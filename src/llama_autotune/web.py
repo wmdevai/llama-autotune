@@ -669,12 +669,23 @@ def _find_free_port(host: str, preferred: int) -> int:
         return s.getsockname()[1]
 
 
+_CHROMIUM_BROWSERS = ("chrom", "brave", "edge", "vivaldi", "opera")
+
+
 def _open_browser(url: str, browser: str | None) -> None:
-    """Open *url* in the requested browser, falling back to the default."""
+    """Open *url* in the requested browser, falling back to the default.
+
+    Chromium-based browsers open in an "app window" (no address bar or
+    toolbars), so the Web UI looks like a native application.
+    """
     if browser and browser not in ("", "default"):
         exe = shutil.which(browser) or shutil.which(f"{browser}-browser")
         if exe:
-            subprocess.Popen([exe, "--new-window", url])
+            lower = browser.lower()
+            if any(name in lower for name in _CHROMIUM_BROWSERS):
+                subprocess.Popen([exe, f"--app={url}"])
+            else:
+                subprocess.Popen([exe, "--new-window", url])
             return
 
     import webbrowser

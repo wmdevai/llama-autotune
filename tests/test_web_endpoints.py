@@ -415,3 +415,42 @@ def test_find_free_port_returns_alternative_when_busy():
         assert web._find_free_port("127.0.0.1", port) != port
     finally:
         srv.close()
+
+
+def test_open_browser_uses_app_mode_for_chromium(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(web.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    def fake_popen(cmd):
+        captured["cmd"] = cmd
+        return SimpleNamespace()
+
+    monkeypatch.setattr(web.subprocess, "Popen", fake_popen)
+
+    web._open_browser("http://127.0.0.1:8766", "brave")
+
+    assert captured["cmd"] == [
+        "/usr/bin/brave",
+        "--app=http://127.0.0.1:8766",
+    ]
+
+
+def test_open_browser_uses_new_window_for_other_browsers(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(web.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    def fake_popen(cmd):
+        captured["cmd"] = cmd
+        return SimpleNamespace()
+
+    monkeypatch.setattr(web.subprocess, "Popen", fake_popen)
+
+    web._open_browser("http://127.0.0.1:8766", "firefox")
+
+    assert captured["cmd"] == [
+        "/usr/bin/firefox",
+        "--new-window",
+        "http://127.0.0.1:8766",
+    ]
