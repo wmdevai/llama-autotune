@@ -7,7 +7,7 @@ Exposes high-level building blocks:
 - ``generate_initial_config`` — heuristic-based default config
 - :class:`Optimizer` — search-based tuning loop
 - ``create_profile`` / ``export_profile`` / ``import_profile`` — profile persistence
-- ``save_benchmark`` / ``save_launch_profile`` / ``get_best_benchmark`` — database helpers
+- ``save_benchmark`` / ``save_launch_profile`` — database helpers
 """
 
 from importlib.metadata import PackageNotFoundError
@@ -20,7 +20,6 @@ except PackageNotFoundError:
 
 from .benchmark import run_benchmark
 from .database import (
-    get_best_benchmark,
     get_session,
     save_benchmark,
     save_launch_profile,
@@ -66,6 +65,5 @@ __all__ = [
     "get_session",
     "save_benchmark",
     "save_launch_profile",
-    "get_best_benchmark",
     "session_scope",
 ]

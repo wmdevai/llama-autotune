@@ -111,6 +111,8 @@ def run_benchmark(
         cmd.append("--no-warmup")
     if config is not None:
         cmd.extend(config.to_bench_args())
+        if config.ctx_size is not None and bench_supports_ctx_size():
+            cmd.extend(["-c", str(config.ctx_size)])
 
     try:
         start = time.time()
@@ -210,6 +212,7 @@ def _watch_process(proc: subprocess.Popen, timeout: int) -> tuple[float, float]:
     return round(peak_rss / (1024**2), 1), round(peak_vram, 1)
 
 
+_NO_GPU_TOOL: tuple[str, ...] = ()
 _VRAM_COMMAND: tuple[str, ...] | None = None
 
 
@@ -217,15 +220,16 @@ def _gpu_vram_used_mb() -> float:
     """Return the total GPU VRAM currently in use, in megabytes.
 
     Probes ``nvidia-smi`` (then ``rocm-smi``) once and caches the working
-    command so subsequent calls do not re-probe. Returns 0.0 when no
-    supported vendor tool is available or the query fails.
+    command — or the absence of one — so subsequent calls do not re-probe.
+    Returns 0.0 when no supported vendor tool is available or the query
+    fails.
     """
     global _VRAM_COMMAND
 
     if _VRAM_COMMAND is None:
-        _VRAM_COMMAND = _probe_vram_command()
+        _VRAM_COMMAND = _probe_vram_command() or _NO_GPU_TOOL
 
-    if _VRAM_COMMAND is None:
+    if _VRAM_COMMAND is _NO_GPU_TOOL:
         return 0.0
 
     try:
@@ -287,6 +291,44 @@ def _probe_vram_command() -> tuple[str, ...] | None:
             return cmd
 
     return None
+
+
+_CTX_SIZE_SUPPORTED: bool | None = None
+
+
+def bench_supports_ctx_size() -> bool:
+    """Return whether the local llama-bench accepts a context-size flag.
+
+    Caches the result of probing ``llama-bench --help`` so the check runs
+    at most once per process. When supported, ``run_benchmark`` forwards
+    ``ctx_size`` so benchmarks allocate the real KV-cache size.
+    """
+    global _CTX_SIZE_SUPPORTED
+
+    if _CTX_SIZE_SUPPORTED is None:
+        _CTX_SIZE_SUPPORTED = _detect_ctx_size_support()
+
+    return _CTX_SIZE_SUPPORTED
+
+
+def _detect_ctx_size_support() -> bool:
+    bench = find_llama_bench()
+    try:
+        result = subprocess.run(
+            [bench, "--help"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except Exception:
+        return False
+
+    if result.returncode != 0:
+        return False
+
+    text = (result.stdout + "\n" + result.stderr).lower()
+    return "--ctx-size" in text
 
 
 def gpu_sensors() -> dict:

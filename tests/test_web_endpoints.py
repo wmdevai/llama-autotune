@@ -346,3 +346,23 @@ def test_storage_delete_unknown_key(monkeypatch, tmp_path):
         json={"key": "bogus"},
     )
     assert response.status_code == 400
+
+
+def test_prune_stale_jobs(monkeypatch):
+    now = 1_000_000.0
+    monkeypatch.setattr(web.time, "time", lambda: now)
+
+    web._jobs.clear()
+    try:
+        web._jobs["fresh"] = {"queue": None, "created": now - 10}
+        web._jobs["stale"] = {
+            "queue": None,
+            "created": now - web._JOB_TTL_SECONDS - 1,
+        }
+
+        web._prune_stale_jobs()
+
+        assert "fresh" in web._jobs
+        assert "stale" not in web._jobs
+    finally:
+        web._jobs.clear()

@@ -10,6 +10,7 @@ import queue
 import shutil
 import subprocess
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -67,6 +68,20 @@ class _QueueLogHandler(logging.Handler):
 
 # In-memory registry of running/just-finished optimization jobs.
 _jobs: dict[str, dict] = {}
+
+# Drop jobs whose SSE stream was never consumed after this many seconds.
+_JOB_TTL_SECONDS = 24 * 3600
+
+
+def _prune_stale_jobs() -> None:
+    """Remove optimization jobs nobody consumed within the TTL window."""
+    now = time.time()
+    for job_id in [
+        jid
+        for jid, job in _jobs.items()
+        if now - job.get("created", now) > _JOB_TTL_SECONDS
+    ]:
+        _jobs.pop(job_id, None)
 
 
 class InspectRequest(BaseModel):
@@ -453,9 +468,11 @@ def optimize(request: OptimizeRequest) -> dict:
             ),
         ) from exc
 
+    _prune_stale_jobs()
+
     job_id = uuid.uuid4().hex
     sink: queue.Queue = queue.Queue()
-    _jobs[job_id] = {"queue": sink}
+    _jobs[job_id] = {"queue": sink, "created": time.time()}
 
     def worker() -> None:
         handler = _QueueLogHandler(sink)

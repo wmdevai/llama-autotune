@@ -335,31 +335,3 @@ def load_trial_cache(
             raw_output=row.raw_output or "",
         )
     return cache
-
-
-def get_best_benchmark(
-    session: Session, model_id: str, objective: str
-) -> BenchmarkModel | None:
-    """Retrieve the highest-scoring successful benchmark for a model/objective pair.
-
-    Results are ordered by generation tokens-per-second descending.
-
-    Args:
-        session: An active SQLAlchemy session.
-        model_id: The model identifier to match.
-        objective: The optimisation objective to match.
-
-    Returns:
-        The best ``BenchmarkModel`` row, or ``None`` if no matching entry exists.
-    """
-    col = BenchmarkModel.generation_tps
-    return (
-        session.query(BenchmarkModel)
-        .filter(
-            BenchmarkModel.model_id == model_id,
-            BenchmarkModel.objective == objective,
-            BenchmarkModel.success == 1,
-        )
-        .order_by(col.desc())
-        .first()
-    )

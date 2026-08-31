@@ -238,3 +238,111 @@ def test_watch_process_kills_on_timeout(monkeypatch):
         raise AssertionError("expected TimeoutExpired")
 
     assert proc._killed is True
+
+
+# ── ctx-size feature detection ───────────────────────────────────────
+
+
+def test_detect_ctx_size_support_true(monkeypatch):
+    monkeypatch.setattr(bm, "find_llama_bench", lambda: "/usr/bin/llama-bench")
+    monkeypatch.setattr(
+        bm.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(
+            returncode=0,
+            stdout="  -c, --ctx-size <n>\n",
+            stderr="",
+        ),
+    )
+    monkeypatch.setattr(bm, "_CTX_SIZE_SUPPORTED", None)
+
+    assert bm.bench_supports_ctx_size() is True
+
+
+def test_detect_ctx_size_support_false(monkeypatch):
+    monkeypatch.setattr(bm, "find_llama_bench", lambda: "/usr/bin/llama-bench")
+    monkeypatch.setattr(
+        bm.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout="usage: ...", stderr=""),
+    )
+    monkeypatch.setattr(bm, "_CTX_SIZE_SUPPORTED", None)
+
+    assert bm.bench_supports_ctx_size() is False
+
+
+def test_run_benchmark_passes_ctx_size_when_supported(monkeypatch):
+    captured = {}
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return FakeProc(returncode=0, stdout='{"avg_ts": 50.0, "n_gen": 8}')
+
+    monkeypatch.setattr(bm, "find_llama_bench", lambda: "/usr/bin/llama-bench")
+    monkeypatch.setattr(bm.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(bm, "_watch_process", lambda p, timeout: (0.0, 0.0))
+    monkeypatch.setattr(bm, "bench_supports_ctx_size", lambda: True)
+
+    bm.run_benchmark("/models/test.gguf", SearchConfig(ctx_size=16384))
+
+    assert "-c" in captured["cmd"]
+    assert "16384" in captured["cmd"]
+
+
+def test_run_benchmark_skips_ctx_size_when_unsupported(monkeypatch):
+    captured = {}
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return FakeProc(returncode=0, stdout='{"avg_ts": 50.0, "n_gen": 8}')
+
+    monkeypatch.setattr(bm, "find_llama_bench", lambda: "/usr/bin/llama-bench")
+    monkeypatch.setattr(bm.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(bm, "_watch_process", lambda p, timeout: (0.0, 0.0))
+    monkeypatch.setattr(bm, "bench_supports_ctx_size", lambda: False)
+
+    bm.run_benchmark("/models/test.gguf", SearchConfig(ctx_size=16384))
+
+    assert "-c" not in captured["cmd"]
+
+
+# ── _gpu_vram_used_mb caching ────────────────────────────────────────
+
+
+def test_gpu_vram_used_mb_caches_no_tool(monkeypatch):
+    calls = []
+
+    def fake_probe():
+        calls.append(1)
+        return None
+
+    monkeypatch.setattr(bm, "_probe_vram_command", fake_probe)
+    monkeypatch.setattr(bm, "_VRAM_COMMAND", None)
+
+    assert bm._gpu_vram_used_mb() == 0.0
+    assert bm._gpu_vram_used_mb() == 0.0
+    assert len(calls) == 1
+
+
+def test_gpu_vram_used_mb_caches_command(monkeypatch):
+    calls = []
+
+    def fake_probe():
+        calls.append(1)
+        return (
+            "nvidia-smi",
+            "--query-gpu=memory.used",
+            "--format=csv,noheader,nounits",
+        )
+
+    monkeypatch.setattr(bm, "_probe_vram_command", fake_probe)
+    monkeypatch.setattr(bm, "_VRAM_COMMAND", None)
+    monkeypatch.setattr(
+        bm.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout="1234\n"),
+    )
+
+    assert bm._gpu_vram_used_mb() == 1234.0
+    assert bm._gpu_vram_used_mb() == 1234.0
+    assert len(calls) == 1

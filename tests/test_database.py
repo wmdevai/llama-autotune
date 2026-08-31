@@ -2,8 +2,8 @@ import os
 import tempfile
 
 from llama_autotune.database import (
+    BenchmarkModel,
     LaunchProfileModel,
-    get_best_benchmark,
     get_session,
     load_trial_cache,
     save_benchmark,
@@ -26,7 +26,7 @@ def _db_session():
     return session, tmp.name, session.bind
 
 
-def test_save_and_get_benchmark():
+def test_save_benchmark():
     session, db_path, engine = _db_session()
     try:
         entry = BenchmarkEntry(
@@ -43,11 +43,15 @@ def test_save_and_get_benchmark():
         )
         save_benchmark(session, entry)
 
-        best = get_best_benchmark(session, "test_model", "balanced")
-        assert best is not None
-        assert best.generation_tps == 100
-        assert best.prompt_tps == 5000
-        assert best.vram_usage == 4096.0
+        saved = (
+            session.query(BenchmarkModel)
+            .filter(BenchmarkModel.model_id == "test_model")
+            .first()
+        )
+        assert saved is not None
+        assert saved.generation_tps == 100
+        assert saved.prompt_tps == 5000
+        assert saved.vram_usage == 4096.0
     finally:
         session.close()
         engine.dispose()
