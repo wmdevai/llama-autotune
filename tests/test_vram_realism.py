@@ -18,7 +18,6 @@ from llama_autotune.heuristics import generate_initial_config
 from llama_autotune.model_inspector import inspect_model
 from llama_autotune.models import SearchConfig
 
-
 MODEL_PATH = os.environ.get(
     "LLAMA_AUTOTUNE_TEST_MODEL",
     os.path.expanduser(

@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import calibration, presets, storage
 from .benchmark import (
     _gpu_vram_used_mb,
     find_llama_bench,
@@ -28,12 +29,10 @@ from .benchmark import (
     gpu_sensors,
     run_benchmark,
 )
-from . import calibration, presets, storage
 from .hardware import detect_hardware
 from .model_inspector import inspect_model
 from .models import OptimizeObjective, SearchConfig
 from .optimizer import Optimizer
-
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "web_static"
@@ -442,7 +441,7 @@ def optimize(request: OptimizeRequest) -> dict:
         )
 
     try:
-        objective = OptimizeObjective(request.objective)
+        OptimizeObjective(request.objective)
     except ValueError as exc:
         valid = [item.value for item in OptimizeObjective]
 

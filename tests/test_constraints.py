@@ -1,3 +1,5 @@
+import pytest
+
 from llama_autotune.constraints import (
     _estimate_kv_cache,
     _head_dim,
@@ -9,8 +11,6 @@ from llama_autotune.constraints import (
     is_plausible,
 )
 from llama_autotune.models import HardwareInfo, ModelInfo, SearchConfig
-
-import pytest
 
 
 def _hw() -> HardwareInfo:

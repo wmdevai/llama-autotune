@@ -16,7 +16,7 @@ from pathlib import Path
 from sqlalchemy import Column, Float, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session
 
-from .models import BenchmarkEntry, BenchmarkResult, LaunchProfile, SearchConfig
+from .models import BenchmarkEntry, BenchmarkResult, LaunchProfile
 
 
 class Base(DeclarativeBase):

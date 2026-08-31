@@ -2,7 +2,6 @@ import os
 import tempfile
 
 from llama_autotune.database import (
-    BenchmarkModel,
     LaunchProfileModel,
     get_best_benchmark,
     get_session,

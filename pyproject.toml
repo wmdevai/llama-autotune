@@ -58,9 +58,20 @@ branch = true
 show_missing = true
 skip_covered = true
 
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["llama_autotune"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.0",
     "httpx>=0.28",
+    "ruff>=0.6.0",
 ]

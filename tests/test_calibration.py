@@ -1,6 +1,5 @@
 """Tests for calibration.py — per-quantization VRAM calibration persistence."""
 
-import json
 
 from llama_autotune import calibration
 from llama_autotune.constraints import _overhead_factor

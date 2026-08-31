@@ -14,7 +14,6 @@ from pathlib import Path
 
 from .models import SearchConfig
 
-
 CURRENT_PRESETS_PATH = (
     Path.home() / ".config" / "llama.cpp" / "presets.ini"
 )

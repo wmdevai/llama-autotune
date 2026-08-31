@@ -116,7 +116,9 @@ def inspect_model(path: str | Path) -> ModelInfo:
 
     if info.is_moe:
         active = _get_int(kv, f"{info.architecture}.expert_used_count", default=0)
-        info.active_parameters = _resolve_active_param_count(kv, info.parameters, expert_count, active)
+        info.active_parameters = _resolve_active_param_count(
+            kv, info.parameters, expert_count, active
+        )
     else:
         info.active_parameters = info.parameters
 
@@ -127,8 +129,8 @@ def _resolve_file_type(kv: dict, model_path: str = "") -> str:
     """Resolve the quantization / file-type string from GGUF metadata.
 
     Prioritises (in order):
-    1. ``general.name`` metadata field
-    2. The model filename
+    1. The model filename
+    2. ``general.name`` metadata field
     3. The integer ``general.file_type`` key mapped through
        ``_KNOWN_FILE_TYPES``
     4. The raw ``general.file_type`` value as a string
@@ -190,7 +192,9 @@ def _resolve_param_count(kv: dict) -> int:
     return 0
 
 
-def _resolve_active_param_count(kv: dict, total_params: int, expert_count: int, expert_used: int) -> int:
+def _resolve_active_param_count(
+    kv: dict, total_params: int, expert_count: int, expert_used: int
+) -> int:
     """Resolve the active parameter count for an MoE model.
 
     Prefers ``general.size_label`` (e.g. ``"1B-7B"`` → 1B active),

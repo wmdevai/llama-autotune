@@ -18,6 +18,17 @@ try:
 except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
+from .benchmark import run_benchmark
+from .database import (
+    get_best_benchmark,
+    get_session,
+    save_benchmark,
+    save_launch_profile,
+    session_scope,
+)
+from .hardware import detect_hardware
+from .heuristics import generate_initial_config
+from .model_inspector import inspect_model
 from .models import (
     Backend,
     BenchmarkEntry,
@@ -30,16 +41,31 @@ from .models import (
     SearchConfig,
     SplitMode,
 )
-from .hardware import detect_hardware
-from .model_inspector import inspect_model
-from .heuristics import generate_initial_config
-from .benchmark import run_benchmark
 from .optimizer import Optimizer
 from .profiles import create_profile, export_profile, import_profile
-from .database import (
-    get_session,
-    save_benchmark,
-    save_launch_profile,
-    get_best_benchmark,
-    session_scope,
-)
+
+__all__ = [
+    "Backend",
+    "BenchmarkEntry",
+    "BenchmarkResult",
+    "GpuVendor",
+    "HardwareInfo",
+    "LaunchProfile",
+    "ModelInfo",
+    "OptimizeObjective",
+    "SearchConfig",
+    "SplitMode",
+    "detect_hardware",
+    "inspect_model",
+    "generate_initial_config",
+    "run_benchmark",
+    "Optimizer",
+    "create_profile",
+    "export_profile",
+    "import_profile",
+    "get_session",
+    "save_benchmark",
+    "save_launch_profile",
+    "get_best_benchmark",
+    "session_scope",
+]

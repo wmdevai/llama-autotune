@@ -4,7 +4,7 @@ import subprocess
 from types import SimpleNamespace
 
 from llama_autotune import benchmark as bm
-from llama_autotune.models import BenchmarkResult, SearchConfig
+from llama_autotune.models import SearchConfig
 
 
 class FakeProc:

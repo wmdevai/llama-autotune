@@ -13,21 +13,19 @@ search space around the best config found by the earlier stages.
 from __future__ import annotations
 
 import itertools
-
 import logging
 import math
-import time
 from typing import Any
 
 import optuna
 
+from . import candidates
 from .benchmark import run_benchmark
 from .constraints import detect_oom_in_output, is_plausible
 from .hardware import detect_hardware
 from .heuristics import generate_initial_config, to_cpu_config
 from .model_inspector import inspect_model
 from .models import (
-    Backend,
     BenchmarkResult,
     HardwareInfo,
     ModelInfo,
@@ -35,7 +33,6 @@ from .models import (
     SearchConfig,
 )
 from .search_space import ParamDef, config_from_params, get_search_space
-from . import candidates
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +166,10 @@ class Optimizer:
             The best SearchConfig found, or the initial heuristic config if
             no successful evaluation was produced.
         """
-        logger.info(f"Starting optimization — model={self.model_path} objective={self.objective.value} hw={self.hw.cpu_name}")
+        logger.info(
+            f"Starting optimization — model={self.model_path} "
+            f"objective={self.objective.value} hw={self.hw.cpu_name}"
+        )
 
         self._estimate_speed()
         if self._speed_tier == "very_slow":
@@ -193,7 +193,10 @@ class Optimizer:
         if self._best_config is not None:
             self._stage_c_bayesian()
 
-        logger.info(f"Optimization complete — best_score={self._best_score} total_evals={self._total_evals}")
+        logger.info(
+            f"Optimization complete — best_score={self._best_score} "
+            f"total_evals={self._total_evals}"
+        )
         return self._best_config or self._initial_config
 
     def _stage_a_baseline(self) -> None:
@@ -206,16 +209,20 @@ class Optimizer:
         logger.info(f"[A] config={self._initial_config}")
         result = self._evaluate(self._initial_config)
         logger.info(
-        f"[A] result success={result.success} "
-        f"gen_tps={result.generation_tps} "
-        f"prompt_tps={result.prompt_tps} "
-        f"total_evals={self._total_evals}"
-        )			
+            f"[A] result success={result.success} "
+            f"gen_tps={result.generation_tps} "
+            f"prompt_tps={result.prompt_tps} "
+            f"total_evals={self._total_evals}"
+        )
         if result.success:
             self._baseline_result = result
             self._best_config = self._initial_config
             self._best_score = self._score(result, self._initial_config)
-            logger.info(f"Baseline score={self._best_score} gen_tps={result.generation_tps} prompt_tps={result.prompt_tps}")
+            logger.info(
+                f"Baseline score={self._best_score} "
+                f"gen_tps={result.generation_tps} "
+                f"prompt_tps={result.prompt_tps}"
+            )
         else:
             logger.warning("Baseline config failed, trying fallbacks")
             self._try_fallback_configs()
@@ -996,21 +1003,6 @@ class Optimizer:
             count,
             include_current=include_current,
         )
-
-    def _stage_b_spread_values(
-        self,
-        param: ParamDef,
-        count: int,
-    ) -> list[Any]:
-        return candidates.stage_b_spread_values(param, count)
-
-    def _grid_values(self, param: ParamDef, count: int) -> list[Any]:
-        return candidates.grid_values(param, count)
-
-    def _sample_param(
-        self, trial: optuna.Trial, name: str, pdef: ParamDef
-    ) -> Any:
-        return candidates.sample_param(trial, name, pdef)
 
     def _config_key(self, config: SearchConfig) -> str:
         """Return a deterministic cache key for a config.

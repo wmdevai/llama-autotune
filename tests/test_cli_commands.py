@@ -1,6 +1,5 @@
 """Tests for CLI commands with mocked hardware/model/benchmark dependencies."""
 
-from types import SimpleNamespace
 
 from typer.testing import CliRunner
 

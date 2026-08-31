@@ -10,19 +10,17 @@ from types import SimpleNamespace
 
 from llama_autotune import hardware as hwmod
 from llama_autotune.hardware import (
-    _detect_amd_linux,
     _detect_amd_vram_linux,
     _detect_gpu_linux,
     _detect_gpu_macos,
     _detect_gpu_windows,
+    _detect_vulkan_linux,
     _determine_backend,
     _get_cpu_name,
     _repair_windows_vram_nvidia,
     _verify_gpu_backend,
-    _detect_vulkan_linux,
 )
 from llama_autotune.models import Backend, GpuVendor, HardwareInfo
-
 
 # ── _determine_backend (missing AMD / INTEL branches) ────────────────
 

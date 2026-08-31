@@ -1,13 +1,16 @@
 """Tests for model_inspector.py — GGUF header parsing and MoE detection."""
 
+import os
+
+import pytest
+
 from llama_autotune.model_inspector import (
     _get_int,
     _get_str,
-    _resolve_block_count,
-    _resolve_param_count,
     _resolve_active_param_count,
+    _resolve_block_count,
     _resolve_file_type,
-    _read_gguf_header,
+    _resolve_param_count,
     inspect_model,
 )
 
@@ -161,16 +164,14 @@ def test_resolve_block_count_legacy_fallback():
 
 # ── inspect_model ────────────────────────────────────────────────────
 
-
-import os
-
-import pytest
-
 OLMOE_PATH = r"C:\llamacpp\models\olmoe\OLMoE-1B-7B-0125-Instruct.Q2_K.gguf"
 DENSE_PATH = r"C:\sandbox\llama\models\qwen\Qwen2.5-3B-Instruct-Q4_K_M.gguf"
 
 
-@pytest.mark.skipif(not os.path.exists(OLMOE_PATH), reason="OLMoE model not present on this machine")
+@pytest.mark.skipif(
+    not os.path.exists(OLMOE_PATH),
+    reason="OLMoE model not present on this machine",
+)
 def test_inspect_olmoe():
     """Real OLMoE model must show correct MoE metadata."""
     info = inspect_model(OLMOE_PATH)
@@ -184,7 +185,10 @@ def test_inspect_olmoe():
     assert info.training_context == 4096
 
 
-@pytest.mark.skipif(not os.path.exists(DENSE_PATH), reason="Qwen dense model not present on this machine")
+@pytest.mark.skipif(
+    not os.path.exists(DENSE_PATH),
+    reason="Qwen dense model not present on this machine",
+)
 def test_inspect_dense_model():
     """Real dense Qwen model must keep showing MoE=False."""
     info = inspect_model(DENSE_PATH)

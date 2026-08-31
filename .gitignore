@@ -23,3 +23,6 @@ results/
 # Coverage
 .coverage
 htmlcov/
+
+# Ruff
+.ruff_cache/

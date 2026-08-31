@@ -11,22 +11,18 @@ from __future__ import annotations
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from rich import box
+from rich.console import Console
+from rich.table import Table
 
-from .benchmark import find_llama_bench, find_llama_binary, run_benchmark
+from .benchmark import find_llama_binary, run_benchmark
 from .database import (
-    get_best_benchmark,
     load_trial_cache,
     save_benchmark,
-    save_launch_profile,
     save_trial_cache,
     session_scope,
 )
@@ -35,14 +31,12 @@ from .heuristics import generate_initial_config
 from .model_inspector import inspect_model
 from .models import (
     BenchmarkEntry,
-    LaunchProfile,
     OptimizeObjective,
     SearchConfig,
 )
 from .optimizer import Optimizer
 from .profiles import create_profile, export_profile, import_profile
 from .web import run_web
-
 
 EXAMPLES = (
     "[bold]Examples:[/bold]\n\n"

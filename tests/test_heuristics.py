@@ -1,6 +1,6 @@
+from llama_autotune.constraints import is_plausible
 from llama_autotune.heuristics import generate_initial_config
 from llama_autotune.models import Backend, HardwareInfo, ModelInfo
-from llama_autotune.constraints import is_plausible
 
 
 def _cpu_hw() -> HardwareInfo:

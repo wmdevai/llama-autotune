@@ -98,7 +98,6 @@ def test_apply_recommended_creates_backup(monkeypatch, tmp_path):
     assert result["backup"] is not None
     assert presets.current_content() == presets.recommended_content()
 
-    backup = tmp_path / "current-presets.ini.bak"
     backups = list(tmp_path.glob("current-presets.ini.bak-*"))
     assert len(backups) == 1
     assert backups[0].read_text(encoding="utf-8") == "old content"

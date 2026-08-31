@@ -3,7 +3,10 @@ from llama_autotune.benchmark import _parse_benchmark_output
 
 def test_parse_combined_avg_ts():
     """Single combined entry (no --no-warmup) — avg_ts is gen_tps."""
-    sample = '[{"n_prompt": 512, "n_gen": 0, "avg_ns": 123456, "avg_ts": 98.76, "mem_usage": 2048.0}]'
+    sample = (
+        '[{"n_prompt": 512, "n_gen": 0, "avg_ns": 123456, '
+        '"avg_ts": 98.76, "mem_usage": 2048.0}]'
+    )
     result = _parse_benchmark_output(sample)
     assert result is not None
     assert result["prompt_tps"] == 0.0

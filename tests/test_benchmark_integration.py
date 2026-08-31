@@ -1,5 +1,4 @@
 import os
-import sys
 
 from llama_autotune.benchmark import (
     binary_name,

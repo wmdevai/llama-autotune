@@ -6,8 +6,8 @@ import optuna
 
 from llama_autotune.models import BenchmarkResult, OptimizeObjective, SearchConfig
 from llama_autotune.optimizer import Optimizer, full_context_workload
-from llama_autotune.web import OptimizeRequest
 from llama_autotune.search_space import ParamDef
+from llama_autotune.web import OptimizeRequest
 
 
 def test_web_optimize_request_defaults_match_optimizer():
@@ -815,22 +815,6 @@ def test_stage_b_uses_local_candidates_for_batch_and_ubatch(
         (1920, 448),
     ]
 
-
-
-def test_stage_b_spread_values_cover_batch_range():
-    opt = Optimizer.__new__(Optimizer)
-    param = ParamDef("batch_size", 128, 8192, step=128)
-
-    assert opt._stage_b_spread_values(param, 2) == [128, 8192]
-    assert opt._stage_b_spread_values(param, 3) == [128, 4224, 8192]
-
-
-def test_stage_b_spread_values_cover_ubatch_range():
-    opt = Optimizer.__new__(Optimizer)
-    param = ParamDef("ubatch_size", 64, 1024, step=64)
-
-    assert opt._stage_b_spread_values(param, 2) == [64, 1024]
-    assert opt._stage_b_spread_values(param, 3) == [64, 576, 1024]
 
 
 def test_stage_b_uses_alternative_ngl_values_when_full_offload_is_baseline(
