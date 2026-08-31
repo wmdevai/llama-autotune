@@ -9,7 +9,15 @@ document.addEventListener("DOMContentLoaded", () => {
     setupOptimize();
     setupPresets();
     setupStorage();
+    startHeartbeat();
 });
+
+
+function startHeartbeat() {
+    setInterval(() => {
+        fetch("/api/heartbeat").catch(() => {});
+    }, 5000);
+}
 
 
 function $(id) {

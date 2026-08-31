@@ -366,3 +366,19 @@ def test_prune_stale_jobs(monkeypatch):
         assert "stale" not in web._jobs
     finally:
         web._jobs.clear()
+
+
+def test_heartbeat_returns_ok():
+    response = _client().get("/api/heartbeat")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_heartbeat_age_resets_on_touch(monkeypatch):
+    monkeypatch.setattr(web.time, "time", lambda: 100.0)
+    web._touch_heartbeat()
+
+    assert web._heartbeat_age() == 0.0
+
+    monkeypatch.setattr(web.time, "time", lambda: 130.0)
+    assert web._heartbeat_age() == 30.0

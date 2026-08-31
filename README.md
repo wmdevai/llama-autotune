@@ -40,7 +40,7 @@ export LLAMA_CPP_DIR="$HOME/.local/src/llama.cpp/build/bin"
 - `search model.gguf [--objective O --resume]` — ricerca in tre stadi.
 - `launch model.gguf [--profile p.json]` — avvia `llama-server`.
 - `export/import profile.json` — profili di avvio.
-- `web` — Web UI in italiano su `http://127.0.0.1:8766`.
+- `web` — Web UI in italiano su `http://127.0.0.1:8766` (`--browser brave` la apre nel browser e ferma il server alla chiusura).
 
 ### Obiettivi di `search`
 

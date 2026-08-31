@@ -84,6 +84,26 @@ def _prune_stale_jobs() -> None:
         _jobs.pop(job_id, None)
 
 
+# Liveness heartbeat used by the launcher mode: the web page pings
+# /api/heartbeat, and the launcher stops the server when the pings stop.
+_heartbeat_lock = threading.Lock()
+_last_heartbeat: float = 0.0
+_HEARTBEAT_TIMEOUT_SECONDS = 30.0
+
+
+def _touch_heartbeat() -> None:
+    global _last_heartbeat
+    with _heartbeat_lock:
+        _last_heartbeat = time.time()
+
+
+def _heartbeat_age() -> float:
+    with _heartbeat_lock:
+        if _last_heartbeat == 0.0:
+            return 0.0
+        return time.time() - _last_heartbeat
+
+
 class InspectRequest(BaseModel):
     model_path: str
 
@@ -129,6 +149,13 @@ def index() -> HTMLResponse:
         index_path.read_text(encoding="utf-8"),
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/api/heartbeat")
+def heartbeat() -> dict:
+    """Record a liveness ping from the web page (launcher mode)."""
+    _touch_heartbeat()
+    return {"ok": True}
 
 
 @app.get("/api/dashboard")
@@ -608,14 +635,68 @@ app.mount(
 )
 
 
+def _open_browser(url: str, browser: str | None) -> None:
+    """Open *url* in the requested browser, falling back to the default."""
+    if browser and browser not in ("", "default"):
+        exe = shutil.which(browser) or shutil.which(f"{browser}-browser")
+        if exe:
+            subprocess.Popen([exe, "--new-window", url])
+            return
+
+    import webbrowser
+
+    webbrowser.open(url)
+
+
 def run_web(
     host: str = "127.0.0.1",
     port: int = 8766,
+    browser: str | None = None,
 ) -> None:
-    """Launch the integrated Web UI."""
+    """Launch the integrated Web UI.
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
+    When *browser* is provided the page is opened in that browser and the
+    server shuts down automatically once the page is closed (heartbeat
+    timeout). Otherwise the server runs in the foreground as before.
+    """
+    url = f"http://{host}:{port}"
+
+    if browser is None:
+        uvicorn.run(app, host=host, port=port)
+        return
+
+    logger = logging.getLogger(__name__)
+
+    config = uvicorn.Config(app, host=host, port=port)
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    # Wait for the server to bind before opening the browser.
+    while not server.started and thread.is_alive():
+        time.sleep(0.1)
+
+    if not server.started:
+        logger.error("Web server failed to start.")
+        thread.join(timeout=5.0)
+        return
+
+    _open_browser(url, browser)
+    _touch_heartbeat()  # start the liveness clock once the page is loading
+
+    logger.info(
+        "Launcher mode: close the browser page to stop the server "
+        f"({_HEARTBEAT_TIMEOUT_SECONDS:.0f}s timeout)"
     )
+
+    try:
+        while thread.is_alive():
+            if _heartbeat_age() > _HEARTBEAT_TIMEOUT_SECONDS:
+                logger.info("Heartbeat lost — shutting down.")
+                server.should_exit = True
+                break
+            time.sleep(1.0)
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10.0)

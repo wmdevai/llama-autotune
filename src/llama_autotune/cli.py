@@ -894,6 +894,14 @@ def web(
         "--port",
         help="Port for the Web UI",
     ),
+    browser: Optional[str] = typer.Option(
+        None,
+        "--browser",
+        help=(
+            "Open the Web UI in this browser and stop the server when the "
+            "page is closed (e.g. 'brave', 'default')"
+        ),
+    ),
 ):
     """Launch the integrated llama-autotune Web UI."""
 
@@ -903,13 +911,19 @@ def web(
         "[/bold green]"
     )
 
-    console.print(
-        f"http://{host}:{port}"
-    )
+    if browser is not None:
+        console.print(
+            "Close the browser page to stop the server."
+        )
+    else:
+        console.print(
+            f"http://{host}:{port}"
+        )
 
     run_web(
         host=host,
         port=port,
+        browser=browser,
     )
 
 
