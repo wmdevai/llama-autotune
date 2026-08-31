@@ -10,11 +10,71 @@
 
     --primary: #7c9cff;
     --primary-hover: #94adff;
+    --on-primary: #ffffff;
 
     --success: #65d6a3;
     --danger: #ff7b7b;
 
+    --hover: #262c38;
+
+    --status-bg: #1b2230;
+    --status-border: #303c56;
+
+    --error-bg: #301d24;
+    --error-border: #66313d;
+
+    --log-bg: #141824;
+    --log-border: #2a3245;
+    --log-text: #9fb2d8;
+
+    --pre-text: #c8d1e5;
+
+    --tip-bg: #0c2a20;
+    --tip-border: #10b981;
+
+    --warning-bg: #2a2110;
+    --warning-border: #f59e0b;
+
     --sidebar-width: 240px;
+}
+
+
+:root[data-theme="light"] {
+    --bg: #f5f6f8;
+    --bg-secondary: #eceef2;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --border: #d8dbe2;
+
+    --text: #1c2027;
+    --muted: #5b6472;
+
+    --primary: #4a6cf7;
+    --primary-hover: #3b5bdf;
+    --on-primary: #ffffff;
+
+    --success: #15804a;
+    --danger: #c63d3d;
+
+    --hover: #e7eaf0;
+
+    --status-bg: #eef3ff;
+    --status-border: #c8d6f5;
+
+    --error-bg: #fdecec;
+    --error-border: #f0b9b9;
+
+    --log-bg: #f0f2f6;
+    --log-border: #d5dae3;
+    --log-text: #3f4a63;
+
+    --pre-text: #3a455c;
+
+    --tip-bg: #e6f6ee;
+    --tip-border: #10b981;
+
+    --warning-bg: #fdf3e0;
+    --warning-border: #f59e0b;
 }
 
 
@@ -149,7 +209,7 @@ button:disabled {
 
 .nav-item.active {
     background: var(--primary);
-    color: #ffffff;
+    color: var(--on-primary);
 }
 
 
@@ -161,6 +221,33 @@ button:disabled {
     color: var(--muted);
 
     font-size: 12px;
+}
+
+
+.theme-toggle {
+    width: 100%;
+
+    margin-top: 12px;
+
+    border: 1px solid var(--border);
+    border-radius: 8px;
+
+    background: var(--bg-card);
+    color: var(--muted);
+
+    padding: 9px 12px;
+
+    font-size: 13px;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+
+.theme-toggle:hover {
+    background: var(--hover);
+    color: var(--text);
 }
 
 
@@ -234,7 +321,7 @@ button:disabled {
     border-color: var(--primary);
 
     background: var(--primary);
-    color: #ffffff;
+    color: var(--on-primary);
 }
 
 
@@ -250,7 +337,7 @@ button:disabled {
 
 
 .secondary-button:hover:not(:disabled) {
-    background: #262c38;
+    background: var(--hover);
 }
 
 
@@ -594,20 +681,20 @@ code {
 
 
 .status-message {
-    background: #1b2230;
+    background: var(--status-bg);
 
     border:
-        1px solid #303c56;
+        1px solid var(--status-border);
 
     color: var(--text);
 }
 
 
 .error {
-    background: #301d24;
+    background: var(--error-bg);
 
     border:
-        1px solid #66313d;
+        1px solid var(--error-border);
 
     color: var(--danger);
 
@@ -622,12 +709,12 @@ code {
 
     padding: 14px 16px;
 
-    background: #141824;
+    background: var(--log-bg);
 
     border:
-        1px solid #2a3245;
+        1px solid var(--log-border);
 
-    color: #9fb2d8;
+    color: var(--log-text);
 
     font-family:
         ui-monospace,
@@ -682,7 +769,7 @@ pre {
 
     border-radius: 8px;
 
-    color: #c8d1e5;
+    color: var(--pre-text);
 
     font-size: 12px;
 

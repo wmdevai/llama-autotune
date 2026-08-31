@@ -10,9 +10,17 @@
 
     <title>llama-autotune</title>
 
+    <script>
+        try {
+            if (localStorage.getItem("theme") === "light") {
+                document.documentElement.dataset.theme = "light";
+            }
+        } catch (e) {}
+    </script>
+
     <link
         rel="stylesheet"
-        href="/static/style.css?v=6"
+        href="/static/style.css?v=7"
     >
 
     <style>
@@ -55,15 +63,15 @@
             color: var(--muted);
         }
         .tip {
-            border-left: 4px solid #10b981;
-            background: #0c2a20;
+            border-left: 4px solid var(--tip-border);
+            background: var(--tip-bg);
             padding: 10px 14px;
             margin: 12px 0;
             border-radius: 4px;
         }
         .warning {
-            border-left: 4px solid #f59e0b;
-            background: #2a2110;
+            border-left: 4px solid var(--warning-border);
+            background: var(--warning-bg);
             padding: 10px 14px;
             margin: 12px 0;
             border-radius: 4px;
@@ -83,7 +91,7 @@
             margin-right: 8px;
             border-radius: 50%;
             background: var(--primary);
-            color: #fff;
+            color: var(--on-primary);
             font-size: 14px;
             font-weight: 700;
         }
@@ -220,6 +228,9 @@
 
         <div class="sidebar-footer">
             llama.cpp autotuning
+            <button id="theme-toggle" class="theme-toggle" type="button">
+                Tema
+            </button>
         </div>
 
     </aside>

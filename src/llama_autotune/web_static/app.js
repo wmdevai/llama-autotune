@@ -10,6 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupPresets();
     setupStorage();
     startHeartbeat();
+    setupTheme();
 });
 
 
@@ -17,6 +18,34 @@ function startHeartbeat() {
     setInterval(() => {
         fetch("/api/heartbeat").catch(() => {});
     }, 5000);
+}
+
+
+function setupTheme() {
+    const toggle = $("theme-toggle");
+    if (!toggle) return;
+
+    const root = document.documentElement;
+
+    function apply(theme) {
+        if (theme === "light") {
+            root.dataset.theme = "light";
+            toggle.textContent = "🌙 Tema scuro";
+        } else {
+            delete root.dataset.theme;
+            toggle.textContent = "☀️ Tema chiaro";
+        }
+        try {
+            localStorage.setItem("theme", theme);
+        } catch (e) {}
+    }
+
+    apply(root.dataset.theme === "light" ? "light" : "dark");
+
+    toggle.addEventListener("click", () => {
+        const next = root.dataset.theme === "light" ? "dark" : "light";
+        apply(next);
+    });
 }
 
 

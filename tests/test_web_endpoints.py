@@ -382,3 +382,36 @@ def test_heartbeat_age_resets_on_touch(monkeypatch):
 
     monkeypatch.setattr(web.time, "time", lambda: 130.0)
     assert web._heartbeat_age() == 30.0
+
+
+def test_port_is_free():
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    assert web._port_is_free("127.0.0.1", port) is True
+
+
+def test_find_free_port_prefers_free_preferred():
+    import socket
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+
+    assert web._find_free_port("127.0.0.1", port) == port
+
+
+def test_find_free_port_returns_alternative_when_busy():
+    import socket
+
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+    try:
+        assert web._find_free_port("127.0.0.1", port) != port
+    finally:
+        srv.close()

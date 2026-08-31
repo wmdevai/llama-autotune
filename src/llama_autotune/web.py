@@ -635,6 +635,40 @@ app.mount(
 )
 
 
+def _notify(message: str) -> None:
+    """Show a desktop notification (best-effort, Linux ``notify-send``)."""
+    exe = shutil.which("notify-send")
+    if not exe:
+        return
+    try:
+        subprocess.Popen([exe, "llama-autotune", message])
+    except Exception:
+        pass
+
+
+def _port_is_free(host: str, port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
+def _find_free_port(host: str, preferred: int) -> int:
+    """Return *preferred* if available, otherwise a free ephemeral port."""
+    if _port_is_free(host, preferred):
+        return preferred
+
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind((host, 0))
+        return s.getsockname()[1]
+
+
 def _open_browser(url: str, browser: str | None) -> None:
     """Open *url* in the requested browser, falling back to the default."""
     if browser and browser not in ("", "default"):
@@ -659,15 +693,19 @@ def run_web(
     server shuts down automatically once the page is closed (heartbeat
     timeout). Otherwise the server runs in the foreground as before.
     """
-    url = f"http://{host}:{port}"
-
     if browser is None:
         uvicorn.run(app, host=host, port=port)
         return
 
     logger = logging.getLogger(__name__)
 
-    config = uvicorn.Config(app, host=host, port=port)
+    actual_port = _find_free_port(host, port)
+    if actual_port != port:
+        logger.info("Port %s in use — using %s.", port, actual_port)
+
+    url = f"http://{host}:{actual_port}"
+
+    config = uvicorn.Config(app, host=host, port=actual_port)
     server = uvicorn.Server(config)
 
     thread = threading.Thread(target=server.run, daemon=True)
@@ -679,11 +717,13 @@ def run_web(
 
     if not server.started:
         logger.error("Web server failed to start.")
+        _notify("Impossibile avviare la Web UI (porta occupata o errore).")
         thread.join(timeout=5.0)
         return
 
     _open_browser(url, browser)
     _touch_heartbeat()  # start the liveness clock once the page is loading
+    _notify(f"Web UI avviata su {url}")
 
     logger.info(
         "Launcher mode: close the browser page to stop the server "
@@ -700,3 +740,5 @@ def run_web(
     finally:
         server.should_exit = True
         thread.join(timeout=10.0)
+
+    _notify("Web UI arrestata.")
