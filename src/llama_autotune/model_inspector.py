@@ -106,10 +106,10 @@ def inspect_model(path: str | Path) -> ModelInfo:
     expert_count = _get_int(kv, f"{info.architecture}.expert_count", default=0)
     if expert_count == 0:
         for key, val in kv.items():
-            if "expert_count" in key:
+            if "expert_count" in key and isinstance(val, (int, float, str)):
                 try:
                     expert_count = int(val)
-                except (ValueError, TypeError):
+                except ValueError:
                     pass
                 break
     info.is_moe = expert_count > 1
@@ -381,7 +381,7 @@ def _read_value_with_type(f, val_type: int) -> object:
     return None
 
 
-def _get_str(kv: dict, key: str) -> str:
+def _get_str(kv: dict[str, object], key: str) -> str:
     """Safely retrieve a string value from the GGUF key-value store.
 
     Args:
@@ -400,7 +400,7 @@ def _get_str(kv: dict, key: str) -> str:
     return str(val)
 
 
-def _get_int(kv: dict, key: str, default: int = 0) -> int:
+def _get_int(kv: dict[str, object], key: str, default: int = 0) -> int:
     """Safely retrieve an integer value from the GGUF key-value store.
 
     Args:
@@ -415,7 +415,9 @@ def _get_int(kv: dict, key: str, default: int = 0) -> int:
     val = kv.get(key)
     if val is None:
         return default
-    try:
-        return int(val)
-    except (ValueError, TypeError):
-        return default
+    if isinstance(val, (int, float, str)):
+        try:
+            return int(val)
+        except ValueError:
+            return default
+    return default

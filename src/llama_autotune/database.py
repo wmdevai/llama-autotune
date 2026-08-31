@@ -13,8 +13,9 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import Column, Float, Integer, String, Text, create_engine
-from sqlalchemy.orm import DeclarativeBase, Session
+from sqlalchemy import Float, Integer, String, Text, create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from .models import BenchmarkEntry, BenchmarkResult, LaunchProfile
 
@@ -31,16 +32,16 @@ class HardwareProfileModel(Base):
     machine. Corresponds to the ``hardware_profiles`` table.
     """
     __tablename__ = "hardware_profiles"
-    id = Column(Integer, primary_key=True)
-    cpu_name = Column(String)
-    physical_cores = Column(Integer)
-    logical_cores = Column(Integer)
-    ram_gb = Column(Float)
-    gpu_count = Column(Integer)
-    gpu_vendor = Column(String)
-    gpu_models = Column(Text)
-    vram_per_gpu = Column(Text)
-    backend = Column(String)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cpu_name: Mapped[str] = mapped_column(String)
+    physical_cores: Mapped[int] = mapped_column(Integer)
+    logical_cores: Mapped[int] = mapped_column(Integer)
+    ram_gb: Mapped[float] = mapped_column(Float)
+    gpu_count: Mapped[int] = mapped_column(Integer)
+    gpu_vendor: Mapped[str] = mapped_column(String)
+    gpu_models: Mapped[str] = mapped_column(Text)
+    vram_per_gpu: Mapped[str] = mapped_column(Text)
+    backend: Mapped[str] = mapped_column(String)
 
 
 class ModelProfileModel(Base):
@@ -51,17 +52,17 @@ class ModelProfileModel(Base):
     ``model_profiles`` table.
     """
     __tablename__ = "model_profiles"
-    id = Column(Integer, primary_key=True)
-    path = Column(String, unique=True)
-    architecture = Column(String)
-    parameters = Column(Integer)
-    quantization = Column(String)
-    n_layers = Column(Integer)
-    n_heads = Column(Integer)
-    training_context = Column(Integer)
-    is_moe = Column(Integer)
-    active_parameters = Column(Integer)
-    file_size_gb = Column(Float)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    path: Mapped[str] = mapped_column(String, unique=True)
+    architecture: Mapped[str] = mapped_column(String)
+    parameters: Mapped[int] = mapped_column(Integer)
+    quantization: Mapped[str] = mapped_column(String)
+    n_layers: Mapped[int] = mapped_column(Integer)
+    n_heads: Mapped[int] = mapped_column(Integer)
+    training_context: Mapped[int] = mapped_column(Integer)
+    is_moe: Mapped[int] = mapped_column(Integer)
+    active_parameters: Mapped[int] = mapped_column(Integer)
+    file_size_gb: Mapped[float] = mapped_column(Float)
 
 
 class BenchmarkModel(Base):
@@ -72,18 +73,18 @@ class BenchmarkModel(Base):
     Corresponds to the ``benchmarks`` table.
     """
     __tablename__ = "benchmarks"
-    id = Column(Integer, primary_key=True)
-    hardware_id = Column(String)
-    model_id = Column(String)
-    config_json = Column(Text)
-    prompt_tps = Column(Float)
-    generation_tps = Column(Float)
-    startup_time = Column(Float)
-    memory_usage = Column(Float)
-    vram_usage = Column(Float)
-    success = Column(Integer)
-    objective = Column(String)
-    timestamp = Column(String)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hardware_id: Mapped[str] = mapped_column(String)
+    model_id: Mapped[str] = mapped_column(String)
+    config_json: Mapped[str] = mapped_column(Text)
+    prompt_tps: Mapped[float] = mapped_column(Float)
+    generation_tps: Mapped[float] = mapped_column(Float)
+    startup_time: Mapped[float] = mapped_column(Float)
+    memory_usage: Mapped[float] = mapped_column(Float)
+    vram_usage: Mapped[float] = mapped_column(Float)
+    success: Mapped[int] = mapped_column(Integer)
+    objective: Mapped[str] = mapped_column(String)
+    timestamp: Mapped[str] = mapped_column(String)
 
 
 class TrialCacheModel(Base):
@@ -93,16 +94,16 @@ class TrialCacheModel(Base):
     the same model can skip configurations it has already evaluated.
     """
     __tablename__ = "trial_cache"
-    id = Column(Integer, primary_key=True)
-    model_id = Column(String)
-    config_json = Column(Text)
-    prompt_tps = Column(Float)
-    generation_tps = Column(Float)
-    startup_time = Column(Float)
-    memory_usage = Column(Float)
-    vram_usage = Column(Float)
-    success = Column(Integer)
-    raw_output = Column(Text)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    model_id: Mapped[str] = mapped_column(String)
+    config_json: Mapped[str] = mapped_column(Text)
+    prompt_tps: Mapped[float] = mapped_column(Float)
+    generation_tps: Mapped[float] = mapped_column(Float)
+    startup_time: Mapped[float] = mapped_column(Float)
+    memory_usage: Mapped[float] = mapped_column(Float)
+    vram_usage: Mapped[float] = mapped_column(Float)
+    success: Mapped[int] = mapped_column(Integer)
+    raw_output: Mapped[str] = mapped_column(Text)
 
 
 class LaunchProfileModel(Base):
@@ -112,13 +113,13 @@ class LaunchProfileModel(Base):
     description, and score. Corresponds to the ``launch_profiles`` table.
     """
     __tablename__ = "launch_profiles"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
-    args_json = Column(Text)
-    model_path = Column(String)
-    hardware = Column(String)
-    created = Column(String)
-    score = Column(Float)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    args_json: Mapped[str] = mapped_column(Text)
+    model_path: Mapped[str] = mapped_column(String)
+    hardware: Mapped[str] = mapped_column(String)
+    created: Mapped[str] = mapped_column(String)
+    score: Mapped[float] = mapped_column(Float)
 
 
 def get_db_path() -> str:
@@ -191,13 +192,13 @@ def session_scope(db_path: str | None = None):
         An open SQLAlchemy ``Session``.
     """
     session = get_session(db_path)
-    engine = session.get_bind()
+    bind = session.get_bind()
     try:
         yield session
     finally:
         session.close()
-        if hasattr(engine, "dispose"):
-            engine.dispose()
+        if isinstance(bind, Engine):
+            bind.dispose()
 
 
 def save_benchmark(session: Session, entry: BenchmarkEntry) -> None:

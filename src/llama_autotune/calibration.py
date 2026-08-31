@@ -33,14 +33,18 @@ def load_calibrations() -> dict[str, dict]:
     """
     global _calibrations
 
-    if _calibrations is None:
-        try:
-            with open(calibrations_path(), encoding="utf-8") as f:
-                _calibrations = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            _calibrations = {}
+    cached = _calibrations
+    if cached is not None:
+        return cached
 
-    return _calibrations
+    try:
+        with open(calibrations_path(), encoding="utf-8") as f:
+            cached = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        cached = {}
+
+    _calibrations = cached
+    return cached
 
 
 def get_overhead_factor(quantization: str) -> float | None:

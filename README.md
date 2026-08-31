@@ -267,6 +267,14 @@ Il valore può essere modificato durante la ricerca e viene considerato anche ne
 (`balanced_context`, `max_context`) il range di ricerca viene esteso fino al
 context length del modello.
 
+> **Nota su `llama-bench`**: la build locale di `llama-bench` non espone un
+> flag `--ctx-size`, quindi durante i benchmark il contesto non viene impostato
+> esplicitamente (llama-bench alloca la KV-cache solo per `n_prompt + n_gen`).
+> `llama-autotune` rileva automaticamente se il binario supporta `--ctx-size`
+> (via `--help`, con cache) e in tal caso lo propaga ai benchmark. La
+> validazione a fine ricerca usa comunque un carico di prompt proporzionale al
+> contesto trovato.
+
 ## Batch size e ubatch size
 
 Lo spazio di ricerca include:
@@ -430,8 +438,30 @@ cd ~/.local/src/llama-autotune
 Lo stato verificato più recente del progetto è:
 
 ```text
-299 passed, 4 skipped
+308 passed, 4 skipped
 ```
+
+Per il lint:
+
+```bash
+.venv/bin/ruff check .
+```
+
+Per il type checking:
+
+```bash
+.venv/bin/pyright src/llama_autotune
+```
+
+I test di integrazione "smoke" usano `llama-bench` reale e richiedono un
+modello GGUF piccolo (50 MB – 3 GB); si attivano indicandolo esplicitamente:
+
+```bash
+LLAMA_AUTOTUNE_SMOKE_MODEL=/percorso/al/modello.gguf \
+  .venv/bin/pytest tests/test_smoke.py
+```
+
+In assenza del modello, i test smoke vengono saltati automaticamente.
 
 Per misurare la copertura dei test:
 

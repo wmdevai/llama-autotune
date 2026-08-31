@@ -333,8 +333,10 @@ def grid_values(param: ParamDef, count: int) -> list[Any]:
             values.append(int(v) if isinstance(param.low, int) else v)
             v += param.step
         return values
-    step = max(1, (param.high - param.low) // (count - 1))
-    return list(range(param.low, param.high + 1, step))
+    low = int(param.low)
+    high = int(param.high)
+    step = max(1, (high - low) // (count - 1))
+    return list(range(low, high + 1, step))
 
 
 def sample_param(
@@ -350,5 +352,7 @@ def sample_param(
     if pdef.is_categorical and pdef.categories:
         return trial.suggest_categorical(name, pdef.categories)
     if pdef.step:
-        return trial.suggest_int(name, pdef.low, pdef.high, step=int(pdef.step))
-    return trial.suggest_int(name, pdef.low, pdef.high)
+        return trial.suggest_int(
+            name, int(pdef.low), int(pdef.high), step=int(pdef.step)
+        )
+    return trial.suggest_int(name, int(pdef.low), int(pdef.high))
