@@ -1,5 +1,6 @@
 """Tests for Optimizer._score — objective-specific scoring."""
 
+import os
 from types import SimpleNamespace
 
 import optuna
@@ -692,6 +693,17 @@ def test_score_balanced_context_defaults_to_generation():
 def test_score_balanced_defaults_to_generation():
     opt = _make_optimizer(OptimizeObjective.BALANCED)
     assert opt._score(_result(gen=7.0), SearchConfig()) == 7.0
+
+
+def test_score_balanced_rewards_speed_and_prompt():
+    """With a baseline present, BALANCED blends generation and prompt ratios."""
+    opt = _make_optimizer(OptimizeObjective.BALANCED)
+    opt._baseline_result = _result(gen=10.0, prompt=50.0)
+
+    faster = opt._score(_result(gen=12.0, prompt=50.0), SearchConfig())
+    slower = opt._score(_result(gen=8.0, prompt=50.0), SearchConfig())
+
+    assert faster > slower
 
 
 def test_benchmark_prompt_tokens_scales_with_context():
@@ -1652,3 +1664,309 @@ def test_run_very_slow_with_slow_mode_continues_optimization():
     assert opt._n_prompt == 64
     assert opt._n_gen == 32
     assert opt._bench_reps == 1
+
+
+# ── _estimate_speed ──────────────────────────────────────────────────
+
+
+def _opt_with_speed_deps(monkeypatch, gen_tps=None, success=True):
+    opt = Optimizer.__new__(Optimizer)
+    opt.model_path = "test.gguf"
+    opt._initial_config = SearchConfig(ctx_size=4096)
+    opt._n_prompt = 512
+    opt._n_gen = 128
+    opt._bench_reps = 3
+    opt._speed_tier = "unknown"
+    opt._speed_estimate = 0.0
+
+    result = BenchmarkResult(generation_tps=gen_tps or 0.0, success=success)
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.run_benchmark",
+        lambda *a, **k: result,
+    )
+    return opt
+
+
+def test_estimate_speed_failure_sets_very_slow(monkeypatch):
+    opt = _opt_with_speed_deps(monkeypatch, success=False)
+
+    opt._estimate_speed()
+
+    assert opt._speed_tier == "very_slow"
+
+
+def test_estimate_speed_below_one_tps(monkeypatch):
+    opt = _opt_with_speed_deps(monkeypatch, gen_tps=0.5)
+
+    opt._estimate_speed()
+
+    assert opt._speed_tier == "very_slow"
+
+
+def test_estimate_speed_slow_tier(monkeypatch):
+    opt = _opt_with_speed_deps(monkeypatch, gen_tps=2.0)
+
+    opt._estimate_speed()
+
+    assert opt._speed_tier == "slow"
+    assert (opt._n_prompt, opt._n_gen, opt._bench_reps) == (64, 32, 1)
+
+
+def test_estimate_speed_medium_tier(monkeypatch):
+    opt = _opt_with_speed_deps(monkeypatch, gen_tps=8.0)
+
+    opt._estimate_speed()
+
+    assert opt._speed_tier == "medium"
+    assert (opt._n_prompt, opt._n_gen, opt._bench_reps) == (256, 64, 2)
+
+
+def test_estimate_speed_fast_tier(monkeypatch):
+    opt = _opt_with_speed_deps(monkeypatch, gen_tps=20.0)
+
+    opt._estimate_speed()
+
+    assert opt._speed_tier == "fast"
+    assert (opt._n_prompt, opt._n_gen, opt._bench_reps) == (512, 128, 3)
+
+
+# ── _stage_a_baseline / fallback ────────────────────────────────────
+
+
+def test_stage_a_baseline_success(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    initial = SearchConfig(ctx_size=4096)
+    opt._initial_config = initial
+    opt._best_config = None
+    opt._best_score = 0.0
+    opt._baseline_result = None
+    opt._total_evals = 0
+
+    result = BenchmarkResult(generation_tps=10.0, success=True)
+    opt._evaluate = lambda cfg: result
+    opt._score = lambda r, c: 42.0
+
+    def fallback_should_not_run():
+        raise AssertionError("fallback must not run on success")
+
+    opt._try_fallback_configs = fallback_should_not_run
+
+    opt._stage_a_baseline()
+
+    assert opt._best_config is initial
+    assert opt._best_score == 42.0
+    assert opt._baseline_result is result
+
+
+def test_stage_a_baseline_failure_tries_fallbacks(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    opt._initial_config = SearchConfig(ctx_size=4096)
+    opt._best_config = None
+    opt._best_score = 0.0
+    opt._total_evals = 0
+
+    opt._evaluate = lambda cfg: BenchmarkResult(success=False)
+
+    called = []
+    opt._try_fallback_configs = lambda: called.append(1)
+
+    opt._stage_a_baseline()
+
+    assert called == [1]
+    assert opt._best_config is None
+
+
+def test_try_fallback_configs_uses_first_success(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    cfg_a = SearchConfig(threads=4)
+    cfg_b = SearchConfig(threads=8)
+    opt._baseline_result = None
+    opt._best_config = None
+    opt._best_score = 0.0
+
+    evaluated = []
+
+    def evaluate(cfg):
+        evaluated.append(cfg)
+        if cfg.threads == 4:
+            return BenchmarkResult(success=False)
+        return BenchmarkResult(generation_tps=7.0, success=True)
+
+    opt._evaluate = evaluate
+    opt._score = lambda r, c: 99.0
+    opt._generate_fallbacks = lambda: [cfg_a, cfg_b]
+
+    opt._try_fallback_configs()
+
+    assert evaluated == [cfg_a, cfg_b]
+    assert opt._best_config is cfg_b
+    assert opt._best_score == 99.0
+    assert opt._baseline_result.generation_tps == 7.0
+
+
+def test_generate_fallbacks_builds_thread_and_cpu_variants():
+    opt = Optimizer.__new__(Optimizer)
+    opt.hw = SimpleNamespace(physical_cores=8, logical_cores=16)
+    opt._initial_config = SearchConfig(
+        threads=4,
+        n_gpu_layers=999,
+        flash_attn=True,
+    )
+
+    fallbacks = opt._generate_fallbacks()
+
+    assert len(fallbacks) == 6
+    assert [c.threads for c in fallbacks[:3]] == [16, 8, 4]
+    assert fallbacks[3].n_gpu_layers == 0
+    assert fallbacks[3].flash_attn is False
+
+
+# ── _evaluate / validate_full_context ────────────────────────────────
+
+
+def test_evaluate_cache_hit_skips_benchmark(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4)
+    opt.model_path = "test.gguf"
+    opt._cache = {
+        cfg.model_dump_json(): BenchmarkResult(
+            generation_tps=9.0,
+            success=True,
+        )
+    }
+    opt._total_evals = 0
+
+    def boom(*a, **k):
+        raise AssertionError("run_benchmark must not run on cache hit")
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", boom)
+
+    result = opt._evaluate(cfg)
+
+    assert result.generation_tps == 9.0
+    assert opt._total_evals == 0
+
+
+def test_evaluate_runs_and_caches(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4)
+    opt.model_path = "test.gguf"
+    opt._cache = {}
+    opt._total_evals = 0
+    opt._n_prompt = 512
+    opt._n_gen = 64
+    opt._bench_reps = 2
+
+    result = BenchmarkResult(generation_tps=11.0, success=True)
+    captured = {}
+
+    def fake_run(model, c, **kw):
+        captured["kw"] = kw
+        return result
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", fake_run)
+
+    got = opt._evaluate(cfg)
+
+    assert got is result
+    assert opt._total_evals == 1
+    assert opt._cache[cfg.model_dump_json()] is result
+    assert captured["kw"]["n_gen"] == 64
+    assert captured["kw"]["repetitions"] == 2
+
+
+def test_evaluate_marks_oom_as_failure(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4)
+    opt.model_path = "test.gguf"
+    opt._cache = {}
+    opt._total_evals = 0
+    opt._n_prompt = 512
+    opt._n_gen = 128
+    opt._bench_reps = 1
+
+    result = BenchmarkResult(
+        generation_tps=5.0,
+        success=True,
+        raw_output="CUDA out of memory",
+    )
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.run_benchmark",
+        lambda *a, **k: result,
+    )
+
+    got = opt._evaluate(cfg)
+
+    assert got.success is False
+
+
+def test_validate_full_context_calls_benchmark(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    opt.model_path = "test.gguf"
+    captured = {}
+
+    def fake_run(model, cfg, **kw):
+        captured["cfg"] = cfg
+        captured["kw"] = kw
+        return BenchmarkResult(success=True)
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", fake_run)
+
+    opt.validate_full_context(SearchConfig(ctx_size=16384))
+
+    assert captured["kw"]["n_prompt"] == 16384
+    assert captured["kw"]["n_gen"] == 256
+    assert captured["kw"]["repetitions"] == 1
+
+
+# ── misc: _score fallback, properties, config key, init ─────────────
+
+
+def test_score_unknown_objective_falls_back_to_generation():
+    opt = _make_optimizer("not_a_real_objective")
+    result = _result(gen=12.0)
+
+    assert opt._score(result, SearchConfig()) == 12.0
+
+
+def test_properties_expose_internal_state():
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4)
+    opt._best_config = cfg
+    opt._best_score = 12.5
+    opt._total_evals = 7
+
+    assert opt.best_config is cfg
+    assert opt.best_score == 12.5
+    assert opt.total_evals == 7
+
+
+def test_config_key_is_deterministic_json():
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4, ctx_size=4096)
+
+    assert opt._config_key(cfg) == cfg.model_dump_json()
+    assert opt._config_key(cfg) == opt._config_key(
+        SearchConfig(threads=4, ctx_size=4096)
+    )
+
+
+def test_init_sets_llama_cpp_dir_env(monkeypatch):
+    monkeypatch.delenv("LLAMA_CPP_DIR", raising=False)
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.detect_hardware",
+        lambda: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.inspect_model",
+        lambda p: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.generate_initial_config",
+        lambda h, m: SearchConfig(),
+    )
+
+    opt = Optimizer(model_path="test.gguf", llama_dir="/opt/llama")
+
+    assert opt.model_path == "test.gguf"
+    assert os.environ["LLAMA_CPP_DIR"] == "/opt/llama"
