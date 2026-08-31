@@ -5,6 +5,44 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-31
+
+### Added
+
+- Rilevamento automatico del supporto `--ctx-size` di `llama-bench`: quando il
+  binario lo supporta, il contesto viene propagato ai benchmark (probe via
+  `--help`, con cache).
+- Lint con `ruff` (regole E/F/W/I) e type checking con `pyright`, entrambi
+  eseguiti in CI.
+- `__all__` esplicito nel modulo principale del pacchetto.
+
+### Changed
+
+- Modelli ORM SQLAlchemy migrati da `Column` a `Mapped[...]`/`mapped_column`
+  (stile tipizzato di SQLAlchemy 2.0).
+- I job di ottimizzazione della Web UI orfani (stream SSE mai consumato) vengono
+  rimossi dopo 24 ore.
+
+### Fixed
+
+- `to_bench_args()` emetteva `-tb` (threads-batch), flag non supportato da
+  `llama-bench` (solo `llama-server`): ora è presente solo in `to_llama_args()`.
+- `--mlock` veniva aggiunto ogni volta che `mlock` era valorizzato, anche quando
+  era `False` (abilitandolo): ora `--mlock`/`--no-mlock` sono emessi in modo
+  condizionale.
+- `storage.delete_item()` accettava chiavi `slot:<nome>` senza validazione,
+  permettendo path traversal fuori dalla directory degli slot: i nomi sono ora
+  validati e risolti dentro `SLOTS_DIR`.
+- `_gpu_vram_used_mb()` ri-sondava `nvidia-smi`/`rocm-smi` a ogni chiamata
+  quando nessuno strumento era disponibile: l'assenza è ora memorizzata.
+
+### Removed
+
+- Helper morto `get_best_benchmark` e wrapper inutilizzati dell'`Optimizer`
+  (`_stage_b_spread_values`, `_grid_values`, `_sample_param`) e
+  `candidates.stage_b_spread_values`.
+- Import inutilizzati in `src/` e `tests/`.
+
 ## [0.5.0] - 2026-08-27
 
 ### Fixed

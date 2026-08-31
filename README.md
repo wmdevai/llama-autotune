@@ -439,6 +439,7 @@ Lo stato verificato più recente del progetto è:
 
 ```text
 308 passed, 4 skipped
+Copertura: 83%
 ```
 
 Per il lint:
@@ -547,7 +548,7 @@ ricerca, UX e testing).
       `candidates.grid_values` / `sample_param`, per i detector hardware
       (`hardware` 57% → 91%), i comandi CLI (`cli` 48% → 84%), il benchmark
       (`benchmark` 54% → 94%) e gli endpoint web (`web` 59% → 84%); totale
-      61% → 82%.
+      61% → 83%.
 - [x] Stima VRAM: i K-quants sono stati ricalibrati a 1.05 da misure reali
       `nvidia-smi` su Q3_K / Q4_K_S / Q5_K_M (caricano a 0.96-0.99× il file;
       prima cadevano sul default 1.15). Aggiunta misurazione VRAM GPU reale in
