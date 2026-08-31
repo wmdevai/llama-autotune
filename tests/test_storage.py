@@ -90,3 +90,19 @@ def test_delete_missing_file_raises(monkeypatch, tmp_path):
 
     with pytest.raises(FileNotFoundError):
         storage.delete_item("benchmarks.db")
+
+
+def test_delete_slot_path_traversal_rejected(monkeypatch, tmp_path):
+    _patch_dirs(monkeypatch, tmp_path)
+
+    for key in (
+        "slot:",
+        "slot:.",
+        "slot:..",
+        "slot:../outside",
+        "slot:a/b",
+        "slot:/etc/passwd",
+        "slot:..\\windows",
+    ):
+        with pytest.raises(ValueError):
+            storage.delete_item(key)

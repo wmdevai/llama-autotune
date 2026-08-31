@@ -10,7 +10,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-
 AUTOTUNE_DIR = Path.home() / ".llama-autotune"
 SLOTS_DIR = Path.home() / ".local" / "share" / "llama.cpp" / "slots"
 
@@ -89,6 +88,41 @@ def list_storage() -> dict:
     }
 
 
+def _resolve_slot(name: str) -> Path:
+    """Resolve a KV-cache slot name to a path inside ``SLOTS_DIR``.
+
+    Rejects empty names, dot segments, and any name containing path
+    separators or absolute paths so a caller-supplied key cannot escape
+    the slots directory (path traversal).
+
+    Args:
+        name: The slot name portion of a ``slot:<name>`` key.
+
+    Returns:
+        The resolved path of the slot file inside ``SLOTS_DIR``.
+
+    Raises:
+        ValueError: When the name is empty, a dot segment, or would
+            resolve outside ``SLOTS_DIR``.
+    """
+    if (
+        not name
+        or name in (".", "..")
+        or "/" in name
+        or "\\" in name
+        or "\x00" in name
+    ):
+        raise ValueError(f"Chiave di archiviazione sconosciuta: slot:{name}")
+
+    target = (SLOTS_DIR / name).resolve()
+    slots_root = SLOTS_DIR.resolve()
+
+    if target.parent != slots_root:
+        raise ValueError(f"Chiave di archiviazione sconosciuta: slot:{name}")
+
+    return target
+
+
 def delete_item(key: str) -> dict:
     """Delete a known generated file, directory, or KV-cache slot.
 
@@ -126,7 +160,7 @@ def delete_item(key: str) -> dict:
     elif key == "profiles":
         target = AUTOTUNE_DIR / "profiles"
     elif key.startswith("slot:"):
-        target = SLOTS_DIR / key[len("slot:"):]
+        target = _resolve_slot(key[len("slot:"):])
     else:
         raise ValueError(f"Chiave di archiviazione sconosciuta: {key}")
 

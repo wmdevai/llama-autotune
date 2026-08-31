@@ -8,7 +8,6 @@ configurations, and launch profiles.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -138,7 +137,7 @@ class SearchConfig(BaseModel):
         """Convert to command-line arguments for ``llama-bench``.
 
         Only includes flags that ``llama-bench`` actually accepts
-        (omits context size, numa, mlock, etc.).
+        (omits context size, threads-batch, numa, mlock, etc.).
 
         Returns:
             List of CLI arguments.
@@ -146,8 +145,6 @@ class SearchConfig(BaseModel):
         args = []
         if self.threads is not None:
             args.extend(["-t", str(self.threads)])
-        if self.threads_batch is not None:
-            args.extend(["-tb", str(self.threads_batch)])
         if self.batch_size is not None:
             args.extend(["-b", str(self.batch_size)])
         if self.ubatch_size is not None:
@@ -180,10 +177,14 @@ class SearchConfig(BaseModel):
             List of CLI arguments.
         """
         args = self.to_bench_args()
+        if self.threads_batch is not None:
+            args.extend(["-tb", str(self.threads_batch)])
         if self.ctx_size is not None:
             args.extend(["-c", str(self.ctx_size)])
-        if self.mlock is not None:
+        if self.mlock is True:
             args.extend(["--mlock"])
+        elif self.mlock is False:
+            args.extend(["--no-mlock"])
         if self.numa is not None:
             args.extend(["--numa", self.numa])
         if self.parallel is not None:

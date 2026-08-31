@@ -86,6 +86,30 @@ def test_search_config_empty():
     assert cfg.to_llama_args() == []
 
 
+def test_to_bench_args_omits_threads_batch():
+    cfg = SearchConfig(threads=12, threads_batch=4, batch_size=2048)
+    args = cfg.to_bench_args()
+    assert "-tb" not in args
+    assert "4" not in args
+    assert "-t" in args
+    assert "12" in args
+
+
+def test_to_llama_args_includes_threads_batch():
+    cfg = SearchConfig(threads_batch=4)
+    args = cfg.to_llama_args()
+    assert "-tb" in args
+    assert "4" in args
+
+
+def test_to_llama_args_mlock_conditional():
+    assert "--mlock" in SearchConfig(mlock=True).to_llama_args()
+    assert "--no-mlock" in SearchConfig(mlock=False).to_llama_args()
+    assert "--mlock" not in SearchConfig(mlock=None).to_llama_args()
+    assert "--no-mlock" not in SearchConfig(mlock=None).to_llama_args()
+    assert "--no-mlock" not in SearchConfig(mlock=True).to_llama_args()
+
+
 def test_optimize_objective_values():
     assert OptimizeObjective("max_generation_tps")
     assert OptimizeObjective("max_prompt_tps")
