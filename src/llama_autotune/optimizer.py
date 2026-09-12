@@ -63,6 +63,8 @@ class Optimizer:
         objective: OptimizeObjective = OptimizeObjective.BALANCED,
         n_trials_stage_b: int = 12,
         n_trials_stage_c: int = 20,
+        n_finalists: int = 3,
+        final_reps: int | None = None,
         llama_dir: str | None = None,
         slow: bool = False,
         cache: dict[str, BenchmarkResult] | None = None,
@@ -74,6 +76,10 @@ class Optimizer:
             objective: Optimisation objective (e.g. balanced, max throughput).
             n_trials_stage_b: Maximum evaluations for the grid-search stage.
             n_trials_stage_c: Maximum evaluations for the Bayesian stage.
+            n_finalists: Number of top configurations re-measured at the end
+                with more repetitions (0 disables the final validation).
+            final_reps: Repetitions used for the final validation. Defaults
+                to twice the search repetitions.
             llama_dir: Optional path to a custom llama.cpp directory. When set,
                 the ``LLAMA_CPP_DIR`` environment variable is updated.
             slow: If True, fallback configs are tried even when the baseline is
@@ -86,6 +92,8 @@ class Optimizer:
         self.objective = objective
         self.n_trials_stage_b = n_trials_stage_b
         self.n_trials_stage_c = n_trials_stage_c
+        self.n_finalists = n_finalists
+        self.final_reps = final_reps
         self.slow = slow
 
         if llama_dir:
@@ -192,6 +200,9 @@ class Optimizer:
 
         if self._best_config is not None:
             self._stage_c_bayesian()
+
+        if self._best_config is not None:
+            self._final_validation()
 
         logger.info(
             f"Optimization complete — best_score={self._best_score} "
@@ -820,12 +831,112 @@ class Optimizer:
                 f"{reason}"
             )
 
-    def _evaluate(self, config: SearchConfig) -> BenchmarkResult:
-        """Run a benchmark for the given config, caching the result."""
+    def _top_candidates(
+        self,
+        limit: int,
+    ) -> list[tuple[float, str, SearchConfig]]:
+        """Return the highest-scoring successful configs from the cache.
+
+        Args:
+            limit: Maximum number of candidates to return.
+
+        Returns:
+            A list of ``(score, config_key, config)`` tuples, best first.
+        """
+        entries: list[tuple[float, str, SearchConfig]] = []
+
+        for key, result in self._cache.items():
+            if not result.success:
+                continue
+            try:
+                config = SearchConfig.model_validate_json(key)
+            except ValueError:
+                continue
+            entries.append((self._score(result, config), key, config))
+
+        entries.sort(key=lambda item: item[0], reverse=True)
+        return entries[:limit]
+
+    def _final_validation(self) -> None:
+        """Re-measure the best candidates with more repetitions.
+
+        Each config is benchmarked only a few times during the search, so
+        small score differences can be noise. This re-runs the best few
+        configs with more repetitions and keeps the most stable winner,
+        reducing the chance of selecting a config that only won by chance.
+        """
+        if self.n_finalists <= 0:
+            return
+
+        finalists = self._top_candidates(self.n_finalists)
+        if not finalists:
+            return
+
+        reps = self.final_reps or max(3, self._bench_reps * 2)
+
+        logger.info(
+            "========== FINAL VALIDATION ========== "
+            f"finalists={len(finalists)} reps={reps}"
+        )
+
+        best_config: SearchConfig | None = None
+        best_score: float | None = None
+
+        for rank, (search_score, _key, config) in enumerate(finalists):
+            logger.info(
+                f"[FINAL] rank={rank} search_score={search_score} "
+                f"config={config}"
+            )
+
+            result = self._evaluate(config, reps=reps, use_cache=False)
+
+            if not result.success:
+                logger.info(f"[FINAL] rank={rank} FAILED — skipped")
+                continue
+
+            score = self._score(result, config)
+
+            logger.info(
+                f"[FINAL] rank={rank} score={score} "
+                f"gen_tps={result.generation_tps} "
+                f"prompt_tps={result.prompt_tps}"
+            )
+
+            if best_score is None or score > best_score:
+                best_score = score
+                best_config = config
+
+        if best_config is not None and best_score is not None:
+            changed = best_config != self._best_config
+            self._best_config = best_config
+            self._best_score = best_score
+            logger.info(
+                f"[FINAL] winner changed={changed} best_score={best_score}"
+            )
+        else:
+            logger.warning(
+                "[FINAL] all finalists failed — keeping search result"
+            )
+
+    def _evaluate(
+        self,
+        config: SearchConfig,
+        reps: int | None = None,
+        use_cache: bool = True,
+    ) -> BenchmarkResult:
+        """Run a benchmark for the given config, caching the result.
+
+        Args:
+            config: The configuration to benchmark.
+            reps: Override the number of repetitions (defaults to the
+                speed-tier workload).
+            use_cache: When False, ignore an existing cache entry and run
+                a fresh benchmark (used by the final validation).
+        """
 
         key = self._config_key(config)
 
-        if key in self._cache:
+        if use_cache and key in self._cache:
             logger.info(
                 f"[EVAL] CACHE HIT key={key} "
                 f"total_evals={self._total_evals}"
@@ -848,7 +959,7 @@ class Optimizer:
             timeout=900,
             n_prompt=n_prompt,
             n_gen=self._n_gen,
-            repetitions=self._bench_reps,
+            repetitions=reps if reps is not None else self._bench_reps,
         )
 
         self._cache[key] = result

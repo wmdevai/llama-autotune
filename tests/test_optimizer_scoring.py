@@ -1501,6 +1501,11 @@ def test_run_normal_speed_executes_all_stages_in_order():
     opt._stage_b_local_search = stage_b
     opt._stage_c_bayesian = stage_c
 
+    def final_validation():
+        calls.append("final")
+
+    opt._final_validation = final_validation
+
     result = opt.run()
 
     assert result is best
@@ -1509,6 +1514,7 @@ def test_run_normal_speed_executes_all_stages_in_order():
         "stage_a",
         "stage_b",
         "stage_c",
+        "final",
     ]
 
 
@@ -1652,6 +1658,11 @@ def test_run_very_slow_with_slow_mode_continues_optimization():
     opt._stage_b_local_search = stage_b
     opt._stage_c_bayesian = stage_c
 
+    def final_validation():
+        calls.append("final")
+
+    opt._final_validation = final_validation
+
     result = opt.run()
 
     assert result is best
@@ -1660,6 +1671,7 @@ def test_run_very_slow_with_slow_mode_continues_optimization():
         "stage_a",
         "stage_b",
         "stage_c",
+        "final",
     ]
     assert opt._n_prompt == 64
     assert opt._n_gen == 32
@@ -1970,3 +1982,158 @@ def test_init_sets_llama_cpp_dir_env(monkeypatch):
 
     assert opt.model_path == "test.gguf"
     assert os.environ["LLAMA_CPP_DIR"] == "/opt/llama"
+
+
+# ── final validation ─────────────────────────────────────────
+
+
+def test_top_candidates_sorted_and_limited():
+    opt = Optimizer.__new__(Optimizer)
+    opt.objective = OptimizeObjective.MAX_GENERATION_TPS
+
+    cfg_a = SearchConfig(threads=2)
+    cfg_b = SearchConfig(threads=4)
+    cfg_c = SearchConfig(threads=8)
+
+    opt._cache = {
+        cfg_a.model_dump_json(): _result(gen=10.0),
+        cfg_b.model_dump_json(): _result(gen=30.0),
+        cfg_c.model_dump_json(): _result(gen=20.0),
+    }
+
+    top = opt._top_candidates(2)
+
+    assert [cfg for _score, _key, cfg in top] == [cfg_b, cfg_c]
+
+
+def test_top_candidates_excludes_failures():
+    opt = Optimizer.__new__(Optimizer)
+    opt.objective = OptimizeObjective.MAX_GENERATION_TPS
+
+    cfg_ok = SearchConfig(threads=4)
+    cfg_fail = SearchConfig(threads=8)
+
+    opt._cache = {
+        cfg_ok.model_dump_json(): _result(gen=10.0),
+        cfg_fail.model_dump_json(): BenchmarkResult(
+            generation_tps=99.0,
+            success=False,
+        ),
+    }
+
+    top = opt._top_candidates(5)
+
+    assert [cfg for _score, _key, cfg in top] == [cfg_ok]
+
+
+def test_final_validation_picks_stable_winner(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    opt.objective = OptimizeObjective.MAX_GENERATION_TPS
+    opt.model_path = "test.gguf"
+    opt.n_finalists = 2
+    opt.final_reps = 7
+    opt._n_prompt = 512
+    opt._n_gen = 128
+    opt._bench_reps = 3
+    opt._total_evals = 0
+    opt._baseline_result = None
+
+    cfg_a = SearchConfig(threads=2)
+    cfg_b = SearchConfig(threads=4)
+
+    # The search ranked cfg_b first...
+    opt._cache = {
+        cfg_a.model_dump_json(): _result(gen=20.0),
+        cfg_b.model_dump_json(): _result(gen=25.0),
+    }
+    opt._best_config = cfg_b
+    opt._best_score = 25.0
+
+    # ...but the higher-precision re-run reverses the ranking.
+    def fake_run(model, config, **kw):
+        assert kw["repetitions"] == 7
+        if config.threads == 2:
+            return _result(gen=24.0)
+        return _result(gen=21.0)
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", fake_run)
+
+    opt._final_validation()
+
+    assert opt._best_config.threads == 2
+    assert opt._best_score == 24.0
+
+
+def test_final_validation_disabled_when_zero(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    opt.n_finalists = 0
+    cfg = SearchConfig(threads=4)
+    opt._cache = {cfg.model_dump_json(): _result(gen=10.0)}
+    opt._best_config = cfg
+    opt._best_score = 10.0
+
+    def boom(*a, **k):
+        raise AssertionError("run_benchmark must not be called")
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", boom)
+
+    opt._final_validation()
+
+    assert opt._best_score == 10.0
+
+
+def test_final_validation_keeps_result_when_all_fail(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    opt.objective = OptimizeObjective.MAX_GENERATION_TPS
+    opt.model_path = "test.gguf"
+    opt.n_finalists = 2
+    opt.final_reps = 5
+    opt._n_prompt = 512
+    opt._n_gen = 128
+    opt._bench_reps = 3
+    opt._total_evals = 0
+    opt._baseline_result = None
+
+    cfg_a = SearchConfig(threads=2)
+    cfg_b = SearchConfig(threads=4)
+    opt._cache = {
+        cfg_a.model_dump_json(): _result(gen=20.0),
+        cfg_b.model_dump_json(): _result(gen=25.0),
+    }
+    opt._best_config = cfg_b
+    opt._best_score = 25.0
+
+    monkeypatch.setattr(
+        "llama_autotune.optimizer.run_benchmark",
+        lambda *a, **k: BenchmarkResult(success=False),
+    )
+
+    opt._final_validation()
+
+    assert opt._best_config is cfg_b
+    assert opt._best_score == 25.0
+
+
+def test_evaluate_use_cache_false_reruns_with_reps(monkeypatch):
+    opt = Optimizer.__new__(Optimizer)
+    cfg = SearchConfig(threads=4)
+    opt.model_path = "test.gguf"
+    opt._cache = {cfg.model_dump_json(): _result(gen=1.0)}
+    opt._total_evals = 0
+    opt._n_prompt = 512
+    opt._n_gen = 128
+    opt._bench_reps = 3
+
+    captured = {}
+
+    def fake_run(model, config, **kw):
+        captured["repetitions"] = kw["repetitions"]
+        return _result(gen=2.0)
+
+    monkeypatch.setattr("llama_autotune.optimizer.run_benchmark", fake_run)
+
+    result = opt._evaluate(cfg, reps=9, use_cache=False)
+
+    assert captured["repetitions"] == 9
+    assert result.generation_tps == 2.0
+    assert opt._total_evals == 1

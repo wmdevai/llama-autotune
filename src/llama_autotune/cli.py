@@ -416,6 +416,14 @@ def search(
         "--trials-c",
         help="Stage C trials",
     ),
+    finalists: int = typer.Option(
+        3,
+        "--finalists",
+        help=(
+            "Number of top configs re-measured with more repetitions "
+            "at the end (0 disables)"
+        ),
+    ),
     slow: bool = typer.Option(
         False,
         "--slow",
@@ -471,6 +479,7 @@ def search(
         objective=obj,
         n_trials_stage_b=trials_b,
         n_trials_stage_c=trials_c,
+        n_finalists=finalists,
         slow=slow,
         cache=cache,
     )

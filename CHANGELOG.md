@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-12
+
+### Added
+
+- **Ri-validazione finale**: alla fine della ricerca le migliori configurazioni
+  (3 per default) vengono ri-misurate con più ripetizioni per ridurre il
+  rumore dei benchmark e scegliere il vincitore più stabile. Controllabile con
+  `--finalists` (0 disabilita) e dal campo `finalists` dell'API web.
+- **Launcher della Web UI**: `web --browser <nome>` apre la pagina in una
+  finestra "app" (senza barre del browser per i browser Chromium) e ferma il
+  server automaticamente alla chiusura, tramite heartbeat.
+- **Notifiche desktop** (`notify-send`) all'avvio, all'arresto e in caso di
+  errore; scelta automatica di una porta libera se quella preferita è occupata.
+- **Tema chiaro/scuro** con toggle nella sidebar, persistito nel browser.
+- **`setup.sh`**: crea l'ambiente, rileva `llama.cpp` e il browser, scrive la
+  configurazione per-macchina e aggiunge il launcher al menu applicazioni.
+
+### Changed
+
+- README riscritto in forma più snella.
+
 ## [0.5.1] - 2026-08-31
 
 ### Added

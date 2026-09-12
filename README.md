@@ -41,7 +41,7 @@ applicazioni (Web UI in una finestra senza barre del browser).
 
 - `inspect model.gguf` — hardware e metadati del modello.
 - `benchmark model.gguf [--batch-size N --n-gpu-layers N ...]` — benchmark singolo.
-- `search model.gguf [--objective O --resume]` — ricerca in tre stadi.
+- `search model.gguf [--objective O --resume]` — ricerca in tre stadi con ri-validazione finale dei migliori (`--finalists`).
 - `launch model.gguf [--profile p.json]` — avvia `llama-server`.
 - `export/import profile.json` — profili di avvio.
 - `web` — Web UI in italiano su `http://127.0.0.1:8766` (`--browser brave` la apre nel browser e ferma il server alla chiusura).

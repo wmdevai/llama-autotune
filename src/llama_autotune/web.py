@@ -125,6 +125,7 @@ class OptimizeRequest(BaseModel):
     objective: str = "balanced"
     trials_b: int = 12
     trials_c: int = 20
+    finalists: int = 3
 
 
 class CalibrateRequest(BaseModel):
@@ -538,6 +539,7 @@ def _run_optimization(request: OptimizeRequest) -> dict:
         objective=objective,
         n_trials_stage_b=request.trials_b,
         n_trials_stage_c=request.trials_c,
+        n_finalists=request.finalists,
     )
 
     best_config = optimizer.run()
