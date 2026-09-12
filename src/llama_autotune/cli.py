@@ -625,6 +625,56 @@ def search(
 
     console.print(table)
 
+    board = opt.candidate_leaderboard(5)
+
+    if board:
+        top = Table(
+            title="Top Configurations",
+            box=box.ROUNDED,
+        )
+
+        top.add_column("#", justify="right")
+        top.add_column("Rating")
+        top.add_column("Gen tps", justify="right")
+        top.add_column("Prompt tps", justify="right")
+        top.add_column("ctx", justify="right")
+        top.add_column("ngl", justify="right")
+        top.add_column("batch/ubatch", justify="right")
+        top.add_column("KV", justify="center")
+        top.add_column("Score", justify="right")
+
+        colors = {
+            "green": "green",
+            "yellow": "yellow",
+            "red": "red",
+        }
+
+        for entry in board:
+            rating = entry["rating"]
+            color = colors.get(rating, "white")
+            ngl = entry.get("n_gpu_layers")
+            kv = (
+                f"{entry.get('cache_type_k') or '-'}"
+                f"/{entry.get('cache_type_v') or '-'}"
+            )
+
+            top.add_row(
+                str(entry["rank"]),
+                f"[{color}]● {rating}[/{color}]",
+                f"{entry['generation_tps']:.2f}",
+                f"{entry['prompt_tps']:.2f}",
+                str(entry.get("ctx_size") or "-"),
+                str(ngl) if ngl is not None else "-",
+                (
+                    f"{entry.get('batch_size') or '-'}"
+                    f"/{entry.get('ubatch_size') or '-'}"
+                ),
+                kv,
+                f"{entry['score']:.3f}",
+            )
+
+        console.print(top)
+
     if output_profile:
         hw_name = opt.hw.cpu_name.replace(
             " ",

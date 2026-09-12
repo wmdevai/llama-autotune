@@ -34,6 +34,7 @@
 
     --warning-bg: #2a2110;
     --warning-border: #f59e0b;
+    --warning-text: #f0b429;
 
     --sidebar-width: 240px;
 }
@@ -75,6 +76,7 @@
 
     --warning-bg: #fdf3e0;
     --warning-border: #f59e0b;
+    --warning-text: #9a6a00;
 }
 
 
@@ -730,6 +732,85 @@ code {
     white-space: pre-wrap;
 
     font-size: 0.85rem;
+}
+
+
+/* CANDIDATES TABLE */
+
+.table-scroll {
+    overflow-x: auto;
+}
+
+
+.candidates-table {
+    width: 100%;
+
+    border-collapse: collapse;
+
+    margin-top: 16px;
+
+    font-size: 13px;
+}
+
+
+.candidates-table th,
+.candidates-table td {
+    border-bottom: 1px solid var(--border);
+
+    padding: 9px 10px;
+
+    text-align: right;
+
+    white-space: nowrap;
+}
+
+
+.candidates-table th {
+    color: var(--muted);
+
+    font-weight: 600;
+    font-size: 12px;
+
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+
+.candidates-table td:first-child,
+.candidates-table th:first-child,
+.candidates-table td:nth-child(2),
+.candidates-table th:nth-child(2) {
+    text-align: left;
+}
+
+
+.rating-badge {
+    display: inline-block;
+
+    padding: 3px 9px;
+
+    border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+
+.rating-green {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+}
+
+
+.rating-yellow {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning-text);
+}
+
+
+.rating-red {
+    background: rgba(214, 69, 69, 0.15);
+    color: var(--danger);
 }
 
 

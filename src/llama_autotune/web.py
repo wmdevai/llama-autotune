@@ -562,6 +562,7 @@ def _run_optimization(request: OptimizeRequest) -> dict:
         "best_config": best_config.model_dump(),
         "best_score": optimizer._best_score,
         "total_evaluations": optimizer._total_evals,
+        "candidates": optimizer.candidate_leaderboard(),
         "baseline_result": (
             baseline_result.model_dump()
             if baseline_result is not None

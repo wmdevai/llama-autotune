@@ -112,6 +112,23 @@ def test_search_forwards_slow_option(
                 memory_usage=1000.0,
             )
 
+        def candidate_leaderboard(self, limit=5):
+            return [
+                {
+                    "rank": 1,
+                    "rating": "green",
+                    "score": 1.0,
+                    "generation_tps": 20.0,
+                    "prompt_tps": 10.0,
+                    "ctx_size": 4096,
+                    "n_gpu_layers": 99,
+                    "batch_size": 2048,
+                    "ubatch_size": 512,
+                    "cache_type_k": "q8_0",
+                    "cache_type_v": "q8_0",
+                }
+            ]
+
     monkeypatch.setattr(
         "llama_autotune.cli.Optimizer",
         FakeOptimizer,

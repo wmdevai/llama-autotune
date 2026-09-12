@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import optuna
 
 from llama_autotune.models import BenchmarkResult, OptimizeObjective, SearchConfig
-from llama_autotune.optimizer import Optimizer, full_context_workload
+from llama_autotune.optimizer import Optimizer, _rating, full_context_workload
 from llama_autotune.search_space import ParamDef
 from llama_autotune.web import OptimizeRequest
 
@@ -2137,3 +2137,83 @@ def test_evaluate_use_cache_false_reruns_with_reps(monkeypatch):
     assert captured["repetitions"] == 9
     assert result.generation_tps == 2.0
     assert opt._total_evals == 1
+
+
+# ── candidate leaderboard / rating ──────────────────────────
+
+
+def test_rating_thresholds():
+    assert _rating(100.0, 100.0) == "green"
+    assert _rating(98.0, 100.0) == "green"
+    assert _rating(95.0, 100.0) == "yellow"
+    assert _rating(80.0, 100.0) == "red"
+
+
+def test_rating_handles_negative_scores():
+    # min_latency: scores are negative, higher (less negative) is better.
+    assert _rating(-5.0, -5.0) == "green"
+    assert _rating(-5.1, -5.0) == "green"
+    assert _rating(-5.3, -5.0) == "yellow"
+    assert _rating(-6.0, -5.0) == "red"
+
+
+def test_candidate_leaderboard_uses_final_results():
+    opt = Optimizer.__new__(Optimizer)
+    cfg_a = SearchConfig(threads=2)
+    cfg_b = SearchConfig(threads=4)
+    opt._final_results = [
+        (
+            30.0,
+            cfg_b,
+            BenchmarkResult(
+                generation_tps=30.0,
+                prompt_tps=100.0,
+                success=True,
+            ),
+        ),
+        (
+            20.0,
+            cfg_a,
+            BenchmarkResult(
+                generation_tps=20.0,
+                prompt_tps=80.0,
+                success=True,
+            ),
+        ),
+    ]
+    opt._cache = {}
+
+    board = opt.candidate_leaderboard(5)
+
+    assert [entry["rank"] for entry in board] == [1, 2]
+    assert board[0]["rating"] == "green"
+    assert board[1]["rating"] == "red"
+    assert board[0]["threads"] == 4
+    assert board[0]["generation_tps"] == 30.0
+
+
+def test_candidate_leaderboard_falls_back_to_cache():
+    opt = Optimizer.__new__(Optimizer)
+    opt.objective = OptimizeObjective.MAX_GENERATION_TPS
+    cfg = SearchConfig(threads=4)
+    opt._final_results = []
+    opt._cache = {
+        cfg.model_dump_json(): BenchmarkResult(
+            generation_tps=25.0,
+            success=True,
+        )
+    }
+
+    board = opt.candidate_leaderboard(3)
+
+    assert len(board) == 1
+    assert board[0]["threads"] == 4
+    assert board[0]["rating"] == "green"
+
+
+def test_candidate_leaderboard_empty():
+    opt = Optimizer.__new__(Optimizer)
+    opt._final_results = []
+    opt._cache = {}
+
+    assert opt.candidate_leaderboard(3) == []

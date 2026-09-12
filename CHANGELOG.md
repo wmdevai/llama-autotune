@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notifiche desktop** (`notify-send`) all'avvio, all'arresto e in caso di
   errore; scelta automatica di una porta libera se quella preferita è occupata.
 - **Tema chiaro/scuro** con toggle nella sidebar, persistito nel browser.
+- **Tabella delle migliori configurazioni** nella Web UI (tab Ottimizzazione) e
+  nel CLI: le prime config emerse dai test con semaforo verde/giallo/rosso in
+  base a quanto sono vicine alla migliore.
 - **`setup.sh`**: crea l'ambiente, rileva `llama.cpp` e il browser, scrive la
   configurazione per-macchina e aggiunge il launcher al menu applicazioni.
 

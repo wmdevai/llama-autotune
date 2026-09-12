@@ -20,7 +20,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=7"
+        href="/static/style.css?v=8"
     >
 
     <style>
@@ -1438,6 +1438,42 @@
                         style="margin-top: 24px;"
                     >
 
+                        <h3>Migliori configurazioni</h3>
+
+                        <p class="muted">
+                            Le configurazioni migliori emerse dai test.
+                            Verde = praticamente pari alla migliore, giallo =
+                            vicina, rosso = nettamente inferiore.
+                        </p>
+
+                        <div class="table-scroll">
+                            <table class="candidates-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Esito</th>
+                                        <th>Gen tps</th>
+                                        <th>Prompt tps</th>
+                                        <th>ctx</th>
+                                        <th>ngl</th>
+                                        <th>batch</th>
+                                        <th>ubatch</th>
+                                        <th>KV</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="optimize-candidates"></tbody>
+                            </table>
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="panel"
+                        style="margin-top: 24px;"
+                    >
+
                         <h3>Baseline</h3>
 
                         <div class="results-grid">
@@ -1941,7 +1977,7 @@
 </div>
 
 
-<script src="/static/app.js?v=5"></script>
+<script src="/static/app.js?v=6"></script>
 
 </body>
 </html>

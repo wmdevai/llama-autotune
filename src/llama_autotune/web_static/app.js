@@ -1595,6 +1595,67 @@ function renderOptimizeResult(data) {
             null,
             2
         );
+
+    renderCandidates(data.candidates);
+}
+
+
+function renderCandidates(candidates) {
+    const tbody = $("optimize-candidates");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    if (!candidates || !candidates.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 10;
+        cell.className = "muted";
+        cell.textContent = "Nessun dato disponibile.";
+        row.appendChild(cell);
+        tbody.appendChild(row);
+        return;
+    }
+
+    const labels = {
+        green: "ottima",
+        yellow: "buona",
+        red: "inferiore",
+    };
+
+    candidates.forEach((entry) => {
+        const row = document.createElement("tr");
+
+        const values = [
+            entry.rank,
+            null,
+            formatTPS(entry.generation_tps),
+            formatTPS(entry.prompt_tps),
+            entry.ctx_size ?? "-",
+            entry.n_gpu_layers ?? "-",
+            entry.batch_size ?? "-",
+            entry.ubatch_size ?? "-",
+            `${entry.cache_type_k ?? "-"}/${entry.cache_type_v ?? "-"}`,
+            Number(entry.score).toFixed(3),
+        ];
+
+        values.forEach((value, index) => {
+            const cell = document.createElement("td");
+
+            if (index === 1) {
+                const badge = document.createElement("span");
+                badge.className = `rating-badge rating-${entry.rating}`;
+                badge.textContent = labels[entry.rating] ?? entry.rating;
+                cell.appendChild(badge);
+            } else {
+                cell.textContent = value;
+            }
+
+            row.appendChild(cell);
+        });
+
+        tbody.appendChild(row);
+    });
 }
 
 

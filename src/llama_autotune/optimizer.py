@@ -49,6 +49,40 @@ def full_context_workload(ctx_size: int | None) -> tuple[int, int]:
     n_prompt = max(512, min(ctx, 32768))
     return n_prompt, 256
 
+
+# Rating thresholds: share of the best score below which a candidate is
+# downgraded from green to yellow, and from yellow to red.
+_RATING_GREEN = 0.98
+_RATING_YELLOW = 0.90
+
+
+def _quality_ratio(score: float, best: float) -> float:
+    """Return how close *score* is to *best*, as a ratio in [0, 1].
+
+    Works for both maximised scores (higher is better) and negative scores
+    such as the minimum-latency objective.
+    """
+    if best > 0:
+        ratio = score / best
+    elif best < 0 and score != 0:
+        ratio = best / score
+    else:
+        return 1.0
+
+    return max(0.0, min(1.0, ratio))
+
+
+def _rating(score: float, best: float) -> str:
+    """Return ``green`` / ``yellow`` / ``red`` for a candidate score."""
+    ratio = _quality_ratio(score, best)
+
+    if ratio >= _RATING_GREEN:
+        return "green"
+    if ratio >= _RATING_YELLOW:
+        return "yellow"
+    return "red"
+
+
 class Optimizer:
     """Three-stage parameter optimizer for llama.cpp.
 
@@ -111,6 +145,9 @@ class Optimizer:
         if cache:
             self._cache.update(cache)
         self._baseline_result: BenchmarkResult | None = None
+        self._final_results: list[
+            tuple[float, SearchConfig, BenchmarkResult]
+        ] = []
 
         self._speed_tier: str = "unknown"
         self._speed_estimate: float = 0.0
@@ -881,6 +918,7 @@ class Optimizer:
 
         best_config: SearchConfig | None = None
         best_score: float | None = None
+        results: list[tuple[float, SearchConfig, BenchmarkResult]] = []
 
         for rank, (search_score, _key, config) in enumerate(finalists):
             logger.info(
@@ -895,6 +933,7 @@ class Optimizer:
                 continue
 
             score = self._score(result, config)
+            results.append((score, config, result))
 
             logger.info(
                 f"[FINAL] rank={rank} score={score} "
@@ -905,6 +944,12 @@ class Optimizer:
             if best_score is None or score > best_score:
                 best_score = score
                 best_config = config
+
+        self._final_results = sorted(
+            results,
+            key=lambda item: item[0],
+            reverse=True,
+        )
 
         if best_config is not None and best_score is not None:
             changed = best_config != self._best_config
@@ -917,6 +962,56 @@ class Optimizer:
             logger.warning(
                 "[FINAL] all finalists failed — keeping search result"
             )
+
+    def candidate_leaderboard(self, limit: int = 5) -> list[dict]:
+        """Return the best configurations with performance and a rating.
+
+        Uses the re-validated finalists when available, otherwise falls back
+        to the best configs seen during the search. Each entry carries a
+        ``rating`` of ``green`` / ``yellow`` / ``red`` based on how close its
+        score is to the best one.
+
+        Args:
+            limit: Maximum number of entries to return.
+
+        Returns:
+            A list of dicts, best first.
+        """
+        entries: list[tuple[float, SearchConfig, BenchmarkResult]] = list(
+            self._final_results
+        )
+
+        if not entries:
+            for score, _key, config in self._top_candidates(limit):
+                cached = self._cache.get(self._config_key(config))
+                if cached is not None:
+                    entries.append((score, config, cached))
+
+        entries = sorted(
+            entries,
+            key=lambda item: item[0],
+            reverse=True,
+        )[:limit]
+
+        if not entries:
+            return []
+
+        best = entries[0][0]
+        board: list[dict] = []
+
+        for rank, (score, config, result) in enumerate(entries, start=1):
+            entry = {
+                "rank": rank,
+                "rating": _rating(score, best),
+                "score": score,
+                "generation_tps": result.generation_tps,
+                "prompt_tps": result.prompt_tps,
+                "vram_usage": result.vram_usage,
+            }
+            entry.update(config.model_dump(exclude_none=True))
+            board.append(entry)
+
+        return board
 
     def _evaluate(
         self,
