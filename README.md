@@ -25,6 +25,10 @@ Indica dove si trovano i binari di `llama.cpp`:
 export LLAMA_CPP_DIR="$HOME/.local/src/llama.cpp/build/bin"
 ```
 
+Su desktop Linux, `./setup.sh` fa tutto in automatico: crea l'ambiente,
+rileva `llama.cpp` e il browser, e aggiunge **llama-autotune** al menu
+applicazioni (Web UI in una finestra senza barre del browser).
+
 ## Guida rapida
 
 ```bash
